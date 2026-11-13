@@ -152,6 +152,16 @@ def mac_service(action, state, binary):
     if action == "stop" or action == "uninstall":
         if command(["launchctl", "print", target], check=False).returncode == 0:
             command(["launchctl", "bootout", target])
+            for _ in range(80):
+                if command(["launchctl","print",target],check=False).returncode:
+                    try:
+                        with exclusive(state/"run.lock"):
+                            break
+                    except ValueError:
+                        pass
+                time.sleep(.15)
+            else:
+                raise ValueError("launchd has not finished unloading this profile")
         if action == "uninstall":
             plist.unlink(missing_ok=True)
         return

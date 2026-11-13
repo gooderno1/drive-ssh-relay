@@ -13,6 +13,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import time
 
 BASE = Path("/etc/drive-ssh-relay")
 UNIT = Path("/etc/systemd/system/drive-ssh-relay.service")
@@ -113,6 +114,10 @@ def install(args):
         if not lookup(user):
             call("useradd", "--system", "--no-create-home", "--home-dir", "/nonexistent",
                  "--shell", "/usr/sbin/nologin", "--comment", "Drive SSH Relay", user)
+        # Portable sshd without PAM refuses locked shadow accounts, even for keys.
+        # "*" cannot authenticate any password. "!" marks a locked account on Linux.
+        # AuthenticationMethods publickey and nologin also apply to both roles.
+        call("usermod", "--password", "*", user)
         if not (keys / user).exists():
             write(keys / user, b"", 0o644)
     key = BASE / "host_ed25519"
@@ -182,7 +187,13 @@ def remove(args):
     if args.purge:
         for user in USERS.values():
             if lookup(user):
-                call("userdel", user)
+                for attempt in range(10):
+                    result = subprocess.run(["userdel", user], capture_output=True, text=True)
+                    if result.returncode == 0:
+                        break
+                    if result.returncode != 8 or attempt == 9:
+                        raise ValueError(result.stderr.strip() or "userdel failed")
+                    time.sleep(0.5)
         for item in (BASE/"keys"/"dr-nas", BASE/"keys"/"dr-client", BASE/"keys",
                      BASE/"sshd_config", BASE/"host_ed25519.pub", BASE/"host_ed25519",
                      BASE/"ports", BASE/".managed"):

@@ -5,7 +5,7 @@ HostKey /etc/drive-ssh-relay/host_ed25519
 PidFile /run/drive-ssh-relay/sshd.pid
 AuthorizedKeysFile /etc/drive-ssh-relay/keys/%u
 AllowUsers dr-nas dr-client
-UsePAM yes
+UsePAM no
 AuthenticationMethods publickey
 PubkeyAuthentication yes
 PasswordAuthentication no

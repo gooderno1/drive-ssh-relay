@@ -146,7 +146,15 @@ def run():
             return json.loads((profiles[role]/"status.json").read_text())["ssh_pid"]
         original = {role:eventually(lambda r=role:pid(r)) for role in profiles}
         command("systemctl","restart","drive-ssh-relay.service")
-        eventually(lambda: all(pid(r) and pid(r)!=old for r,old in original.items()))
+        def new_sessions():
+            return all(pid(r) and pid(r)!=old for r,old in original.items())
+        try:
+            eventually(new_sessions)
+        except RuntimeError:
+            for role,state in profiles.items():
+                print(role, "previous pid", original[role], (state/"status.json").read_text(), flush=True)
+                print((state/"events.log").read_text()[-1400:],flush=True)
+            raise
         eventually(exchange)
         print("passed: both endpoints reconnect after VPS restart",flush=True)
         # Drop one relay leg and require the other one to survive and recover.
