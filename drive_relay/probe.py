@@ -32,11 +32,14 @@ def verify(folder, name, timeout=0, clean=False):
         raise ValueError("invalid probe filename, directory or timeout")
     path = folder / name
     start = time.monotonic()
+    reason = "absent_or_incomplete"
     while True:
+        info = None
         try:
             if path.is_symlink() or path.resolve().parent != folder.resolve():
                 raise ValueError("probe must be a regular file inside the selected folder")
-            if path.is_file() and path.stat().st_size == int(m[1]):
+            info = path.stat()
+            if path.is_file() and info.st_size == int(m[1]):
                 with path.open("rb") as f:
                     digest = hashlib.sha256()
                     for chunk in iter(lambda: f.read(1024*1024), b""):
@@ -47,10 +50,17 @@ def verify(folder, name, timeout=0, clean=False):
                     print(json.dumps({"file":name, "verified":True, "removed":clean,
                                       "observed_wait_seconds":round(time.monotonic()-start, 3)}))
                     return 0
-        except (FileNotFoundError, PermissionError):
-            pass
+                reason = "different_digest"
+        except FileNotFoundError:
+            reason = "absent_or_incomplete"
+        except OSError as exc:
+            attrs = getattr(info, "st_file_attributes", 0)
+            if attrs & (0x1000 | 0x40000 | 0x400000):
+                reason = "cloud_placeholder_unreadable"
+            else:
+                reason = "read_error_" + str(getattr(exc, "winerror", None) or exc.errno)
         remaining = start + timeout - time.monotonic()
         if remaining <= 0:
-            print(json.dumps({"file": name, "verified":False, "reason":"absent, incomplete or different digest"}))
+            print(json.dumps({"file":name, "verified":False, "reason":reason}))
             return 2
         time.sleep(min(remaining, 0.5))

@@ -1,4 +1,5 @@
 import argparse
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -23,9 +24,11 @@ def parser():
     sub = p.add_subparsers(dest="cmd", required=True)
     init = sub.add_parser("init", help="enroll an endpoint and print its public device key")
     init.add_argument("role", choices=["nas", "client"])
-    init.add_argument("--host", required=True)
-    init.add_argument("--host-key-file", required=True, type=Path, help="public host key from the VPS administrator")
-    for arg, default in (("ssh-port",443),("bridge-port",16690),("local-port",16690),("drive-port",6690)):
+    source=init.add_mutually_exclusive_group(required=True)
+    source.add_argument("--host")
+    source.add_argument("--invite", type=Path, help="public JSON enrollment file from a trusted VPS administrator")
+    init.add_argument("--host-key-file", type=Path, help="public host key when configuring --host manually")
+    for arg, default in (("ssh-port",None),("bridge-port",None),("local-port",16690),("drive-port",6690)):
         init.add_argument("--" + arg, type=int, default=default)
     sub.add_parser("run", help="run this endpoint supervisor in the foreground")
     sub.add_parser("doctor", help="inspect network layers, listener and fresh supervisor state")
@@ -45,14 +48,30 @@ def parser():
     return p
 
 
+def profile_from_args(args):
+    if args.invite:
+        if args.host_key_file or args.ssh_port is not None or args.bridge_port is not None:
+            raise ValueError("the invitation already supplies the host key and VPS ports")
+        if args.invite.stat().st_size>16384:
+            raise ValueError("invitation exceeds 16 KiB")
+        data=json.loads(args.invite.read_text(encoding="utf-8-sig"))
+        if not isinstance(data,dict) or set(data)!={"schema","host","ssh_port","bridge_port","host_key"} or data["schema"]!="drive-ssh-relay/v1":
+            raise ValueError("unrecognized enrollment file; get a fresh copy from the VPS administrator")
+        return Profile(args.role,data["host"],data["host_key"],data["ssh_port"],data["bridge_port"],args.local_port,args.drive_port)
+    if not args.host_key_file:
+        raise ValueError("manual configuration needs --host-key-file")
+    return Profile(args.role,args.host,args.host_key_file.read_text(encoding="utf-8-sig"),
+                   443 if args.ssh_port is None else args.ssh_port,
+                   16690 if args.bridge_port is None else args.bridge_port,args.local_port,args.drive_port)
+
+
 def main(argv=None):
     p = parser()
     args = p.parse_args(argv)
     state = args.state.expanduser().resolve()
     try:
         if args.cmd == "init":
-            cfg = Profile(args.role, args.host, args.host_key_file.read_text(), args.ssh_port,
-                          args.bridge_port, args.local_port, args.drive_port)
+            cfg = profile_from_args(args)
             key = initialize(state, cfg)
             print("Pinned VPS host key " + fingerprint(cfg.host_key), file=sys.stderr)
             print(key)

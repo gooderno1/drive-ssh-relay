@@ -219,6 +219,15 @@ def status():
     return 0 if running and public and private else 2
 
 
+def invitation(host):
+    if len(host)>253 or not all(re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?", s)
+                                for s in host.split(".")):
+        raise ValueError("use the public IPv4 address or DNS name of the VPS")
+    ssh_port, bridge = ports()
+    return {"schema":"drive-ssh-relay/v1", "host":host, "ssh_port":ssh_port,
+            "bridge_port":bridge, "host_key":ed25519((BASE/"host_ed25519.pub").read_text())}
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     sub = p.add_subparsers(dest="command", required=True)
@@ -233,6 +242,8 @@ def main():
             cmd.add_argument("public_key", type=Path)
     sub.add_parser("status")
     sub.add_parser("host-key")
+    invite = sub.add_parser("invite", help="print a public endpoint enrollment file")
+    invite.add_argument("--host", required=True, help="public DNS name or IPv4 address")
     remove_cmd = sub.add_parser("uninstall")
     remove_cmd.add_argument("--purge", action="store_true", help="also remove role accounts, public key lists and host key")
     args = p.parse_args()
@@ -250,6 +261,8 @@ def main():
                 enroll(args)
             elif args.command == "host-key":
                 print((BASE / "host_ed25519.pub").read_text().strip())
+            elif args.command == "invite":
+                print(json.dumps(invitation(args.host),indent=2))
             elif args.command == "status":
                 return status()
             else:

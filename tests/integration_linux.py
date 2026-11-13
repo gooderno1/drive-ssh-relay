@@ -116,14 +116,15 @@ def run():
         stack.callback(cleanup)
         vps("install","--ssh-port",str(ssh),"--bridge-port",str(bridge))
         vps("install","--ssh-port",str(ssh),"--bridge-port",str(bridge))
-        host = Path("/etc/drive-ssh-relay/host_ed25519.pub")
+        invite = base/"relay-invite.json"
+        with invite.open("w") as out:
+            command(sys.executable,str(VPS),"invite","--host","127.0.0.1",stdout=out)
         profiles = {}
         for role in ("nas","client"):
             state = base/(role+" state")
             profiles[role]=state
             v = [sys.executable,str(CLI),"--state",str(state)]
-            command(*v,"init",role,"--host","127.0.0.1","--host-key-file",str(host),
-                    "--ssh-port",str(ssh),"--bridge-port",str(bridge),"--drive-port",str(drive),"--local-port",str(local))
+            command(*v,"init",role,"--invite",str(invite),"--drive-port",str(drive),"--local-port",str(local))
             vps("authorize",role,role+"-one",str(state/"identity.pub"))
             vps("authorize",role,role+"-one",str(state/"identity.pub"))
         # Check the effective deployed policy, including the literal loopback port.
@@ -142,6 +143,21 @@ def run():
         listeners=command("ss","-lntH","sport","=",":"+str(bridge),capture_output=True).stdout.splitlines()
         assert listeners and all(line.split()[3] == f"127.0.0.1:{bridge}" for line in listeners)
         print("passed: TLS hostname and data integrity in both directions",flush=True)
+        # A syntactically valid but incorrect trusted key must fail before any forwarding.
+        wrong = base/"wrong-host"
+        spare = free_ports(1)[0]
+        command(sys.executable,str(CLI),"--state",str(wrong),"init","client","--host","127.0.0.1",
+                "--host-key-file",str(profiles["nas"]/"identity.pub"),"--ssh-port",str(ssh),
+                "--bridge-port",str(bridge),"--local-port",str(spare))
+        wrong_pin = (wrong/"known_hosts").read_bytes()
+        reject = subprocess.Popen([sys.executable,str(CLI),"--state",str(wrong),"run"])
+        stack.callback(stop,reject)
+        def fail_closed():
+            return json.loads((wrong/"status.json").read_text())["detail"]=="host_key_mismatch"
+        eventually(fail_closed)
+        assert (wrong/"known_hosts").read_bytes()==wrong_pin
+        stop(reject)
+        print("passed: wrong host key fails closed without replacing the pin",flush=True)
         def pid(role):
             return json.loads((profiles[role]/"status.json").read_text())["ssh_pid"]
         original = {role:eventually(lambda r=role:pid(r)) for role in profiles}

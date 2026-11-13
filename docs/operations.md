@@ -10,6 +10,8 @@
 
 ## 配置和数据位置
 
+推荐用 `server.py invite --host relay.example.net` 导出 JSON，两端分别运行 `init nas --invite relay-invite.json` 和 `init client --invite relay-invite.json`。自建脚本也可以使用手动入口 `init client --host relay.example.net --host-key-file vps-host.pub --ssh-port 7443`，其中公钥由 VPS 的 `server.py host-key` 获取。接入文件包含的端口与主机公钥不能同时在命令行覆盖。公开接入文件不授予任何转发权限；实际接入仍需 VPS 管理员授权对应设备公钥。
+
 | 平台 | 默认私有状态目录 | 生命周期 |
 | --- | --- | --- |
 | Windows | `%LOCALAPPDATA%\DriveSSHRelay` | 当前用户登录，GUI 子系统的 Python 和无控制台 SSH 子进程。无需管理员安装客户端任务 |
@@ -31,6 +33,8 @@
 | 偶发掉线 | `status.json` 的时间、`events.log` 的错误类别和 `journalctl -u drive-ssh-relay` | 检查每一段的断开时间。客户端的退避上限为 60 秒；Windows、macOS 在用户登录后启动 |
 
 `doctor` 的退出码 0 表示该设备能访问 VPS、能看到本机相关监听、并且当前配置的监督进程持有运行锁且心跳新鲜。SSH TCP 可能正处于认证阶段，或者 VPS 到 NAS 的后半段暂时不可用。完整业务验收使用 `probe ack`，退出码 0 表示测试文件的实际内容匹配。退出码 2 表示至少有一项待处理。
+
+Windows 按需同步可先创建逻辑大小正确的占位文件，Drive 也会登记完成。如果接收端返回 `cloud_placeholder_unreadable`，请在已登录 Drive 的同一用户会话运行 `ack`，或在已固定为离线可用的测试文件夹再测。后台 SSH 登录可能没有权限触发云文件下载。探针保留未验证的样本，不会自动操作同步目录的固定策略。
 
 ## 增加、轮换、撤销
 

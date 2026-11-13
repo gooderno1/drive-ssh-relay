@@ -36,6 +36,8 @@ def hostname(text):
 
 
 def public_key(text):
+    if not isinstance(text, str):
+        raise ValueError("public key must be text")
     fields = text.strip().split()
     if "\n" in text.strip() or len(fields) < 2 or fields[0] != "ssh-ed25519":
         raise ValueError("expected one Ed25519 public key from the VPS console")

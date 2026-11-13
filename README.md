@@ -17,25 +17,25 @@ Drive Server ── NAS 127.0.0.1:6690 ── SSH 反向转发 ───┘
 
 ## 首次使用
 
-从 [Releases](https://github.com/gooderno1/drive-ssh-relay/releases) 下载源码包并解压，在相应设备的项目目录执行下列命令。直接运行源码只需 Python 标准库。Windows 可将 `python3` 换成 `python`。如果 VPS 的 443 已给 HTTPS 使用，选择一个空闲 TCP 端口，如 7443，并在两端的 `init` 都加上 `--ssh-port 7443`。
+从 [Releases](https://github.com/gooderno1/drive-ssh-relay/releases) 下载源码包并解压，在相应设备的项目目录执行下列命令。直接运行源码只需 Python 标准库。Windows 可将 `python3` 换成 `python`。如果 VPS 的 443 已给 HTTPS 使用，请在 VPS 安装时选一个空闲 TCP 端口，如 7443，接入文件会自动带上实际端口。
 
 1. 在 VPS 安装独立中继。已有可用的管理入口是前提。只在 VPS 防火墙和云安全组允许选定的 SSH 端口。安装程序会先检查端口和角色账号冲突。
 
    ```sh
    sudo python3 deploy/vps/server.py install --ssh-port 443
-   sudo python3 deploy/vps/server.py host-key
+   sudo python3 deploy/vps/server.py invite --host relay.example.net > relay-invite.json
    ```
 
-   通过已验证的 VPS 管理连接或提供商控制台，把 `host-key` 输出的整行公钥保存为两台设备上的 `vps-host.pub`。安装命令还会打印 SHA-256 指纹，便于另一路核对。
+   把示例域名换成自己的 VPS 地址。经已验证的管理连接，把 `relay-invite.json` 复制到 NAS 和电脑。里面只有地址、两个端口和公开的主机密钥，务必从可信来源取得。安装命令还会打印 SHA-256 指纹，可另行核对。
 
-2. 分别在 NAS 和电脑注册设备，把示例域名换成 VPS 公网域名。
+2. 在 NAS 和每一台电脑导入同一份接入文件，各自生成独立密钥。
 
    ```sh
    # NAS
-   python3 relay.py init nas --host relay.example.net --host-key-file vps-host.pub
+   python3 relay.py init nas --invite relay-invite.json
 
    # 每一台电脑
-   python3 relay.py init client --host relay.example.net --host-key-file vps-host.pub
+   python3 relay.py init client --invite relay-invite.json
    ```
 
    每次 `init` 会显示设备的 Ed25519 **公钥**，并在私有状态目录生成 `identity.pub`。通过已有管理连接将 NAS 和电脑的这两个公钥文件放到 VPS，分别命名为 `nas.pub`、`laptop.pub`。VPS 的主机公钥用于两端识别 VPS，设备公钥用于 VPS 放行设备，两者用途不同。
