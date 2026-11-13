@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "drive-ssh-relay"
+version = "0.1.0"
+description = "Self-hosted SSH relay for the Synology Drive desktop sync client"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {file = "LICENSE"}
+dependencies = []
+
+[project.scripts]
+drive-ssh-relay = "drive_relay.cli:main"
+
+[tool.setuptools]
+packages = ["drive_relay"]

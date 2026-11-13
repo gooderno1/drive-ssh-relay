@@ -1,0 +1,40 @@
+Port @SSH_PORT@
+AddressFamily inet
+ListenAddress 0.0.0.0
+HostKey /etc/drive-ssh-relay/host_ed25519
+PidFile /run/drive-ssh-relay/sshd.pid
+AuthorizedKeysFile /etc/drive-ssh-relay/keys/%u
+AllowUsers dr-nas dr-client
+UsePAM yes
+AuthenticationMethods publickey
+PubkeyAuthentication yes
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitEmptyPasswords no
+PermitRootLogin no
+StrictModes yes
+MaxSessions 0
+MaxAuthTries 3
+LoginGraceTime 20
+GatewayPorts no
+AllowTcpForwarding no
+AllowStreamLocalForwarding no
+AllowAgentForwarding no
+X11Forwarding no
+PermitTunnel no
+PermitTTY no
+PermitUserRC no
+PermitUserEnvironment no
+ClientAliveInterval 30
+ClientAliveCountMax 3
+LogLevel VERBOSE
+
+Match User dr-nas
+    AllowTcpForwarding remote
+    PermitListen 127.0.0.1:@BRIDGE_PORT@
+    PermitOpen none
+
+Match User dr-client
+    AllowTcpForwarding local
+    PermitOpen 127.0.0.1:@BRIDGE_PORT@
+    PermitListen none

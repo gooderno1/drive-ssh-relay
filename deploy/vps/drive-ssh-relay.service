@@ -1,0 +1,20 @@
+[Unit]
+Description=Drive SSH Relay (dedicated forwarding endpoint)
+After=network.target
+
+[Service]
+Type=simple
+RuntimeDirectory=drive-ssh-relay
+ExecStartPre=/usr/bin/install -d -o root -g root -m 0755 /run/sshd
+ExecStartPre=/usr/sbin/sshd -t -f /etc/drive-ssh-relay/sshd_config
+ExecStart=/usr/sbin/sshd -D -e -f /etc/drive-ssh-relay/sshd_config
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=4
+KillMode=control-group
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target

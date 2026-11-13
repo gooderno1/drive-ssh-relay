@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+build/
+dist/
+*.egg-info/
+local_dev_work/
+state/
+*.log
+*.pem
+*.key
+id_ed25519*
+known_hosts*
+.DS_Store
