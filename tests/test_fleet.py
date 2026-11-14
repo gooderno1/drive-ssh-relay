@@ -11,7 +11,7 @@ import unittest
 from unittest import mock
 from drive_relay import fleet, managed, observed, onboard, routing
 from drive_relay.config import Profile
-from drive_relay.fleetdb import Denied
+from drive_relay.fleetdb import Denied, secret_hash
 
 
 def key():
@@ -42,7 +42,7 @@ class Management(unittest.TestCase):
         (self.root / "invite.json").write_text(json.dumps(self.inv))
         self.server = fleet.Fleet(self.root, self.base)
         self.db = self.server.store
-        self.db.password("a-long-local-test-password")
+        self.db.password("initial-test-password7")
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
         self.addCleanup(self.server.server_close)
         self.addCleanup(self.server.shutdown)
@@ -68,25 +68,52 @@ class Management(unittest.TestCase):
             c.close()
 
     def test_initial_password_link_is_single_use_and_ends_prior_sessions(self):
-        previous = self.db.login("a-long-local-test-password", "loopback")
+        previous = self.db.login("initial-test-password7", "loopback")
         code = "b" * 43
         self.db.issue_setup(code)
-        self.db.activate(code, "new-test-password-with-length")
+        self.db.activate(code, "aaaaaaa1")
         with self.assertRaises(Denied):
             self.db.admin(previous)
         with self.assertRaises(Denied):
-            self.db.activate(code, "another-long-test-password")
-        self.db.admin(self.db.login("new-test-password-with-length", "loopback"))
+            self.db.activate(code, "other-password2")
+        self.db.admin(self.db.login("aaaaaaa1", "loopback"))
         self.db.issue_setup(code)
-        self.db.password("replacement-local-test-password")
+        self.db.password("replacement-local-test-password2")
         with self.assertRaises(Denied):
-            self.db.activate(code, "another-long-test-password")
+            self.db.activate(code, "other-password2")
+
+    def test_web_setup_and_operator_reset_require_letters_and_digits(self):
+        code = "p" * 43
+        self.db.issue_setup(code)
+        token = self.db.login("initial-test-password7", "local")
+        for invalid in ("abc1234", "abcdefgh", "12345678", "abcd!@#$", "1234!@#$", "a" * 256 + "1", None):
+            with self.subTest(invalid=invalid):
+                with self.assertRaises(ValueError):
+                    self.db.password(invalid)
+                status, _, _ = self.http("/api/admin/activate", {"code": code, "password": invalid})
+                self.assertEqual(status, 400)
+        self.db.admin(token)
+        for password in ("abcde123", "é!💡123ab", "a" * 255 + "１"):
+            with self.subTest(length=len(password)):
+                self.assertEqual(self.http("/api/admin/activate", {"code": code, "password": password})[0], 200)
+                self.assertEqual(self.http("/api/admin/login", {"password": password})[0], 200)
+                self.db.password(password)
+                self.db.admin(self.db.login(password, "local"))
+                self.db.issue_setup(code)
+
+    def test_legacy_password_still_logs_in(self):
+        # Existing versions allowed a passphrase without a digit.
+        salt = os.urandom(16)
+        previous = "previous-passphrase"
+        with self.db.db(True) as c:
+            c.execute("UPDATE admin SET salt=?,verifier=? WHERE id=1", (salt, secret_hash(previous, salt)))
+        self.assertEqual(self.http("/api/admin/login", {"password": previous})[0], 200)
 
     def test_access_boundaries_and_pair_retries(self):
         self.assertEqual(self.http("/download/client.zip")[0], 401)
         self.assertEqual(self.http("/api/admin/overview")[0], 401)
         self.assertEqual(self.http("/api/admin/login", {"password": "incorrect"})[0], 401)
-        status, _, cookie = self.http("/api/admin/login", {"password": "a-long-local-test-password"})
+        status, _, cookie = self.http("/api/admin/login", {"password": "initial-test-password7"})
         self.assertEqual(status, 200)
         for attr in ("HttpOnly", "Secure", "SameSite=Strict"):
             self.assertIn(attr, cookie)

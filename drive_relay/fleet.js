@@ -2,7 +2,18 @@
 const by=id=>document.getElementById(id);
 let model=null;
 let activation=new URLSearchParams(location.hash.slice(1)).get("activate");
-if(activation){history.replaceState(null,"",location.pathname);document.querySelector("#login h1").textContent="设置管理员密码";document.querySelector("#login p").textContent="首次启用管理台。请设置至少 14 个字符的密码。";by("password").minLength=14;by("password").autocomplete="new-password";document.querySelector("#loginForm button").textContent="设置密码并登录";}
+const passwordInput = by("password");
+const passwordHint = "密码长度为 8 至 256 个字符，至少包含一个字母和一个数字。";
+if (activation) {
+  history.replaceState(null, "", location.pathname);
+  document.querySelector("#login h1").textContent = "设置管理员密码";
+  document.querySelector("#login p").textContent = passwordHint;
+  document.querySelector("#loginForm button").textContent = "设置密码并登录";
+  passwordInput.autocomplete = "new-password";
+  passwordInput.minLength = 8;
+  passwordInput.pattern = String.raw`(?=[\s\S]*\p{L})(?=[\s\S]*\p{Nd})[\s\S]{8,256}`;
+  passwordInput.title = passwordHint;
+}
 function element(tag,text,cls){const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;}
 function message(text,err=false){by("message").textContent=text;by("message").className=err?"error":"";}
 function layout(authed){by("login").hidden=authed;by("board").hidden=!authed;by("logout").hidden=!authed;}
@@ -31,7 +42,22 @@ function device(d){
  return entry;
 }
 async function refresh(){model=await api("overview");layout(true);const devs=model.devices;const active=devs.filter(d=>d.online).length;by("summary").textContent=devs.length?active+" 台设备在线":"等待第一台设备";by("total").textContent=devs.length;by("online").textContent=active;by("pending").textContent=devs.filter(d=>!d.disabled&&d.rev!==d.ack).length;by("version").textContent="Drive Relay · v"+model.version;by("download").hidden=!model.download;by("devices").replaceChildren(...(devs.length?devs.map(device):[element("p","生成配对码即可接入第一台电脑。","empty")]));}
-by("loginForm").onsubmit=guarded(async()=>{const password=by("password").value;if(activation){await api("activate",{code:activation,password});activation=null;by("password").removeAttribute("minlength");document.querySelector("#login p").textContent="登录以查看设备、设置线路和添加新电脑。";document.querySelector("#login h1").textContent="管理员登录";document.querySelector("#loginForm button").textContent="登录管理台";by("password").autocomplete="current-password";}await api("login",{password});by("password").value="";message("");await refresh();});
+by("loginForm").onsubmit = guarded(async () => {
+  const password = passwordInput.value;
+  if (activation) {
+    await api("activate", {code: activation, password});
+    activation = null;
+    for (const attribute of ["minlength", "pattern", "title"]) passwordInput.removeAttribute(attribute);
+    passwordInput.autocomplete = "current-password";
+    document.querySelector("#login p").textContent = "登录以查看设备、设置线路和添加新电脑。";
+    document.querySelector("#login h1").textContent = "管理员登录";
+    document.querySelector("#loginForm button").textContent = "登录管理台";
+  }
+  await api("login", {password});
+  passwordInput.value = "";
+  message("");
+  await refresh();
+});
 by("logout").onclick=guarded(async()=>{await api("logout",{});by("ticket").hidden=true;by("code").textContent="";by("devices").replaceChildren();layout(false);message("");});
 by("invite").onsubmit=guarded(async()=>{const r=await api("invite",{name:by("name").value});by("code").textContent=r.code;by("expiry").textContent="有效至 "+new Date(r.expires*1000).toLocaleTimeString()+"，限一台设备。";by("ticket").hidden=false;});
 by("copy").onclick=guarded(async()=>{await navigator.clipboard.writeText(model.origin+"\n"+by("code").textContent);message("已复制管理台地址和配对码。");});

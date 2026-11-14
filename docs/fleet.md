@@ -24,7 +24,7 @@ sudo python3 deploy/fleet/install.py --domain drive.example.net --https-port 844
 sudo -u drive-fleet python3 -m drive_relay.fleet password --data /var/lib/drive-relay-fleet
 ```
 
-在 VPS 的交互终端设置管理员密码，随后用浏览器打开 `https://drive.example.net:8443/`。首次设密和后续密码重置也可以由部署工具通过 `issue-setup` 的标准输入登记高熵一次性代码，经私有渠道给管理员提供含 `#activate=<代码>` 的本机入口。有效期为 24 小时。重置密码会使原管理员会话失效。
+在 VPS 的交互终端设置管理员密码，随后用浏览器打开 `https://drive.example.net:8443/`。网页设密和命令行重置均接受 8 至 256 个字符，至少包含一个字母和一个数字。首次设密和后续密码重置也可以由部署工具通过 `issue-setup` 的标准输入登记高熵一次性代码，经私有渠道给管理员提供含 `#activate=<代码>` 的本机入口。有效期为 24 小时。重置密码会使原管理员会话失效。
 
 ## 日常操作
 

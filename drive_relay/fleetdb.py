@@ -26,6 +26,13 @@ def secret_hash(value, salt):
     )
 
 
+def validate_new_password(value):
+    if not isinstance(value, str) or not 8 <= len(value) <= 256:
+        raise ValueError("管理员密码长度须为 8 至 256 个字符")
+    if not any(c.isalpha() for c in value) or not any(c.isdecimal() for c in value):
+        raise ValueError("管理员密码至少包含一个字母和一个数字")
+
+
 def name(value):
     if (
         not isinstance(value, str)
@@ -72,8 +79,7 @@ class Store:
             """)
 
     def password(self, value):
-        if not isinstance(value, str) or not 14 <= len(value) <= 256:
-            raise ValueError("管理密码须为 14 至 256 个字符")
+        validate_new_password(value)
         salt = secrets.token_bytes(16)
         proof = secret_hash(value, salt)
         with self.db(True) as c:
@@ -97,8 +103,7 @@ class Store:
             ).fetchone()
         if not row or not hmac.compare_digest(row[0], digest(code)):
             raise Denied()
-        if not isinstance(password, str) or not 14 <= len(password) <= 256:
-            raise ValueError("密码须为 14 至 256 个字符")
+        validate_new_password(password)
         salt = secrets.token_bytes(16)
         proof = secret_hash(password, salt)
         with self.db(True) as c:
