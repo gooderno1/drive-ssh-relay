@@ -2,7 +2,9 @@
 
 给 Synology Drive 桌面客户端自建 TCP 中继。NAS 和电脑各自向一台 Linux VPS 建立出站 SSH 连接，家里有公网地址或入站端口映射都不是前提。原来的同步任务继续由 Synology Drive 管理，VPS 只转发连接。项目采用 MIT 许可证，与 Synology 无隶属关系。
 
-**v0.1.0 可用于试点。** 已验证 Windows、macOS 和 Linux 端侧，以及穿过两段 SSH 的传输和断线恢复。发行包在真实 DSM 上的开机回连和与直连的同条件速度对照，是下一阶段的验收项。准备试用可从下方“首次使用”开始。[版本下载](https://github.com/gooderno1/drive-ssh-relay/releases/tag/v0.1.0) · [当前进展与试点计划](docs/DEVELOPMENT_PLAN.md)
+**连接怎么选。** 电脑与 NAS 在同一可信局域网、Drive 服务可达时，直接访问 NAS。公司、酒店等其他网络默认使用自建中继。有可用 NAS 回连的已有安装，接入新电脑时复用该回连。v0.1.0 由 Drive 保存的服务器地址决定线路，出差电脑的切换方式见[线路和换机手册](docs/operations.md#routes)。
+
+**v0.1.0 可用于试点。** 已验证 Windows、macOS 和 Linux 端侧，以及穿过两段 SSH 的传输和断线恢复。真实 DSM 的开机任务属于新安装的现场验收项。[版本下载](https://github.com/gooderno1/drive-ssh-relay/releases/tag/v0.1.0) · [当前进展与试点计划](docs/DEVELOPMENT_PLAN.md)
 
 ```text
 Drive Client ── 本机 127.0.0.1:16690 ── SSH 本地转发 ─┐
@@ -74,8 +76,9 @@ Drive Server ── NAS 127.0.0.1:6690 ── SSH 反向转发 ───┘
 | 试运行、观察故障 | `python3 relay.py run`，按 Ctrl+C 结束。已有同一配置的后台实例时会提示 |
 | 单独测试、并行迁移 | 在子命令之前加 `--state /absolute/private/path`。客户端可选 `--local-port`；NAS、VPS 和所有客户端的 `--bridge-port` 应一致 |
 | 开停自启动服务 | `python3 relay.py service start`、`service stop`、`service uninstall` |
-| 接入第二台电脑、轮换和撤销 | [部署与运维](docs/operations.md) |
+| 新增电脑、轮换和撤销设备 | [部署与运维](docs/operations.md) |
+| VPS 将到期、换 IP 或供应商 | [并行迁移和原路回退](docs/operations.md#replace-vps) |
 | 选中继线路、判断下载慢、区别可用性和吞吐 | [设计审查与取舍](docs/design-review.md) |
 | 测试范围与版本演进 | [验证记录](DEVELOPMENT_LOG.md) · [发布说明](RELEASE_NOTES.md) |
 
-客户端实际得到的速度取决于两段线路、VPS 带宽和 Drive 队列。先用相同文件、方向和时间窗口比较直连与中继，再决定是否切换常用连接。
+异地速度受两段线路、VPS 带宽及 Drive 队列影响。评估替代节点时，在相同异地网络上用新的随机文件比较旧、新中继的双向表现。本地直连只在能访问 NAS 的局域网测量。

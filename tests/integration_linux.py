@@ -1,6 +1,7 @@
 """Run only on a disposable Ubuntu runner with systemd and openssh-server."""
 import contextlib
 import hashlib
+import importlib.util
 import os
 from pathlib import Path
 import pwd
@@ -14,6 +15,7 @@ import tempfile
 import threading
 import time
 import json
+from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[1]
 VPS = ROOT/"deploy"/"vps"/"server.py"
@@ -67,6 +69,78 @@ def stop(p):
             p.wait()
 
 
+def check_vps_replacement(base, profiles, processes, outer, drive, local, exchange):
+    """Keep the original relay live while preparing a second SSH host on this runner."""
+    ssh_b, bridge_b, preview_port = free_ports(3)
+    spec = importlib.util.spec_from_file_location("candidate_vps", VPS)
+    candidate = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(candidate)
+
+    def start_endpoint(state, cleanup):
+        proc = subprocess.Popen([sys.executable, str(CLI), "--state", str(state), "run"])
+        cleanup.callback(stop, proc)
+        return proc
+
+    with tempfile.TemporaryDirectory(dir=candidate.BASE, prefix="candidate-") as path, contextlib.ExitStack() as active:
+        # The two sshd processes share Unix role accounts, but use separate
+        # host keys, client authorizations, ports and NAS connections.
+        root = Path(path)
+        root.chmod(0o755)
+        candidate.BASE = root
+        (root/"ports").write_text(f"{ssh_b} {bridge_b}\n")
+        auth = root/"keys"
+        auth.mkdir()
+        auth.chmod(0o755)
+        for username in candidate.USERS.values():
+            (auth/username).touch()
+            (auth/username).chmod(0o644)
+        command("ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", str(root/"host_ed25519"))
+        config = (VPS.parent/"sshd_config.in").read_text()
+        config = config.replace("/etc/drive-ssh-relay", str(root)).replace("/run/drive-ssh-relay/sshd.pid", str(root/"sshd.pid"))
+        config = config.replace("@SSH_PORT@", str(ssh_b)).replace("@BRIDGE_PORT@", str(bridge_b))
+        config = config.replace("ListenAddress 0.0.0.0", "ListenAddress 127.0.0.2")
+        config_path = root/"sshd_config"
+        config_path.write_text(config)
+        command("/usr/sbin/sshd", "-t", "-f", str(config_path))
+        daemon = subprocess.Popen(["/usr/sbin/sshd", "-D", "-f", str(config_path)])
+        active.callback(stop, daemon)
+        invite = base/"candidate-invite.json"
+        invite.write_text(json.dumps(candidate.invitation("127.0.0.2")))
+        assert json.loads(invite.read_text())["host_key"] != json.loads((base/"relay-invite.json").read_text())["host_key"]
+
+        candidate_states = {}
+        for label, role, port in (("nas-b", "nas", local), ("client-b", "client", local),
+                                  ("preview-b", "client", preview_port)):
+            state = base/label
+            candidate_states[label] = state
+            command(sys.executable, str(CLI), "--state", str(state), "init", role, "--invite", str(invite),
+                    "--drive-port", str(drive), "--local-port", str(port))
+            candidate.enroll(SimpleNamespace(command="authorize", role=role, name=label, public_key=state/"identity.pub"))
+
+        old_profile = (profiles["client"]/"profile.json").read_bytes()
+        new_nas = start_endpoint(candidate_states["nas-b"], active)
+        preview = start_endpoint(candidate_states["preview-b"], active)
+        eventually(lambda: exchange(preview_port))
+        assert exchange(local)
+        stop(preview)
+        stop(processes["client"])
+        new_client = start_endpoint(candidate_states["client-b"], active)
+        eventually(lambda: exchange(local))
+        # Prove that the unchanged Drive address now works without the old VPS.
+        command("systemctl", "stop", "drive-ssh-relay.service")
+        try:
+            assert exchange(local)
+        finally:
+            command("systemctl", "start", "drive-ssh-relay.service")
+        stop(new_client)
+        stop(new_nas)
+        stop(daemon)
+        processes["client"] = start_endpoint(profiles["client"], outer)
+        eventually(lambda: exchange(local))
+        assert (profiles["client"]/"profile.json").read_bytes() == old_profile
+        print("passed: independent VPS preflight, cutover with old VPS offline, rollback with new VPS offline, same Drive address and TLS identity", flush=True)
+
+
 def run():
     if os.geteuid() != 0 or os.getenv("DRIVE_RELAY_DISPOSABLE") != "1":
         raise SystemExit("Use the dedicated disposable Linux CI runner.")
@@ -102,8 +176,8 @@ def run():
         responder = stack.enter_context(Server(("127.0.0.1",drive),Handler))
         threading.Thread(target=responder.serve_forever,daemon=True).start()
         stack.callback(responder.shutdown)
-        def exchange():
-            with socket.create_connection(("127.0.0.1",local),timeout=3) as stream:
+        def exchange(port=local):
+            with socket.create_connection(("127.0.0.1",port),timeout=3) as stream:
                 with client_tls.wrap_socket(stream,server_hostname="drive.example.test") as conn:
                     conn.settimeout(6)
                     conn.sendall(request)
@@ -143,6 +217,7 @@ def run():
         listeners=command("ss","-lntH","sport","=",":"+str(bridge),capture_output=True).stdout.splitlines()
         assert listeners and all(line.split()[3] == f"127.0.0.1:{bridge}" for line in listeners)
         print("passed: TLS hostname and data integrity in both directions",flush=True)
+        check_vps_replacement(base, profiles, processes, stack, drive, local, exchange)
         # A syntactically valid but incorrect trusted key must fail before any forwarding.
         wrong = base/"wrong-host"
         spare = free_ports(1)[0]
