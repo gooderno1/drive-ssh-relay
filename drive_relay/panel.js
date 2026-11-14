@@ -43,12 +43,13 @@ function display(data, force=false) {
   const actual=data.transport||{}, external=actual.kind==="legacy", other=actual.kind==="other";
   $("route").textContent=({vps:"VPS 中继",lan:"家庭局域网直连"})[actual.route]||(other?"入口由其他程序占用":"尚无可确认的线路");
   $("via").textContent=actual.route==="lan"?"家庭局域网":actual.route==="vps"?"VPS 中继":"等待连接";
-  $("ownerBadge").textContent=({legacy:"旧中继运行中",managed:"新版运行中",idle:"入口空闲",other:"入口已占用"})[actual.kind]||"状态待确认";
+  $("ownerBadge").textContent=({legacy:"固定中继程序",managed:"选路程序运行中",idle:"入口空闲",other:"入口已占用"})[actual.kind]||"状态待确认";
   $("ownerBadge").className="badge"+(other||actual.kind==="idle"?" wait":"");
   $("connections").textContent=actual.connections??"—";
-  if(external)$("reason").textContent="旧 SSH 中继持有固定入口，已连接配置中的 VPS。";
+  if(external)$("reason").textContent="本机固定通过 VPS 连接 NAS。";
   if(other)$("reason").textContent="检测到监听程序，其传输线路尚未核实。";
-  $("serviceHelp").textContent=external?"旧版正在传输。新版保存的策略将在新版接管后生效。":other?"先确认现有入口的用途，再切换服务。":"路由服务可独立于此页面运行。";
+  if(external)$("service").textContent="固定中继";
+  $("serviceHelp").textContent=external?"固定中继程序正在传输。启用选路程序后，才会执行家庭直连优先等策略。":other?"先确认现有入口的用途，再切换服务。":"选路程序可独立于此页面运行。";
   for(const btn of document.querySelectorAll("[data-op]"))btn.disabled=external||other||(btn.dataset.op==="stop"&&runtime.phase==="inactive");
   if (!loaded||force) { for(const [key,val] of Object.entries(data.routing)) $(key).value=val; loaded=true; toggle(); }
 }

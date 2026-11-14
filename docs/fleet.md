@@ -6,7 +6,7 @@
 
 - Debian 或 Ubuntu，已有可用的 NAS 回连，安装发行版 OpenSSH Server、Nginx、Python 3.9+、Certbot。
 - 为管理域名设置 DNS 记录并取得 HTTPS 证书。部署器使用 `/etc/letsencrypt/live/<域名>/`。选择证书验证方式时核对已有的端口与 Web 服务。
-- 为设备 SSH 选择一个空闲端口。管理台默认使用 HTTPS 8443。只有 443 空闲时才选择 HTTPS 443。云防火墙和系统防火墙需要放行选定的两个入口。管理 API 本身只监听 VPS 的回环地址。
+- 为设备 SSH 选择一个空闲端口。管理台默认使用标准 HTTPS 443，管理 API 只监听 VPS 回环地址。443 已由同步 SSH 占用时，可以按下方「与 SSH 共用 443」部署。
 
 ## 安装
 
@@ -20,11 +20,20 @@ sudo python3 deploy/vps/server.py invite --host relay.example.net --lan-ip 192.1
 家用参数与 NAS 证书名称来自已验证的接入文件。在新管理入口与原中继并行的部署中，将该文件的 `ssh_port` 设置为新设备 SSH 端口；保留主机公钥和现有 NAS 回环桥端口。核对命令所在的 shell 对输出文件有写入权限。
 
 ```sh
-sudo python3 deploy/fleet/install.py --domain drive.example.net --https-port 8443 --invite /root/drive-invite.json --host-key /etc/drive-ssh-relay/host_ed25519
+sudo python3 deploy/fleet/install.py --domain drive.example.net --https-port 443 --invite /root/drive-invite.json --host-key /etc/drive-ssh-relay/host_ed25519
 sudo -u drive-fleet python3 -m drive_relay.fleet password --data /var/lib/drive-relay-fleet
 ```
 
-在 VPS 的交互终端设置管理员密码，随后用浏览器打开 `https://drive.example.net:8443/`。网页设密和命令行重置均接受 8 至 256 个字符，至少包含一个字母和一个数字。首次设密和后续密码重置也可以由部署工具通过 `issue-setup` 的标准输入登记高熵一次性代码，经私有渠道给管理员提供含 `#activate=<代码>` 的本机入口。有效期为 24 小时。重置密码会使原管理员会话失效。
+在 VPS 的交互终端设置管理员密码，随后用浏览器打开 `https://drive.example.net/`。网页设密和命令行重置均接受 8 至 256 个字符，至少包含一个字母和一个数字。部署工具也可以通过 `issue-setup` 登记一次性设密代码，私下向管理员提供含 `#activate=<代码>` 的入口。有效期为 24 小时。重置密码会使原管理员会话失效。
+
+## 与 SSH 共用 443
+
+新部署优先将 HTTPS 放在 443、设备 SSH 放在独立端口。已有设备依赖 SSH 443 且 VPS 只有一个公网 IPv4 地址时，可使用仓库随附的 HAProxy 配置。该入口支持发起 SSH 标识的客户端，也支持等待服务器先打招呼的客户端。原有 SSH 服务仍执行公钥认证和端口转发限制。
+
+1. 核对公网 IP、SSH 监听和已有连接，并保留独立管理通道。给原专用 sshd 增加仅回环的监听，例如 `127.0.0.1:19444`。用 `sshd -t -f <配置>` 检查，向原监听进程发送 HUP 后核对主机公钥。若部署依赖 SSH 客户端源 IP 白名单，先设计保留源 IP 的入口或使用独立公网地址；普通 TCP 代理会使 sshd 看到代理地址。
+2. 将 `deploy/fleet/shared-https.conf.in` 的 `@DOMAIN@` 换成真实域名，作为 `/etc/drive-relay-fleet/shared-https.conf` 纳入专用 Nginx 的 http 配置。这个回环 TLS 入口通过 PROXY v2 接收 HTTPS 客户端地址。将 `shared-443.cfg.in` 中的公网 IP 和 SSH 回环地址替换后保存为 `/etc/drive-relay-fleet/shared-443.cfg`。发行版 HAProxy 与专用 systemd 模板 `drive-relay-frontdoor.service.in` 管理公网入口。
+3. 先让测试 HAProxy 绑定一个备用回环端口，分别验证 HTTPS 证书和 SSH 主机公钥。再释放原公网监听，启用专用 HAProxy 的公网 443。切换仅作用于新建 TCP 连接。开放所需公网端口，保留回环后端的本地绑定。
+4. 原 8443 入口升级时向安装器传入 `--https-port 8443 --public-https-port 443`。安装器保留共享配置、新设备使用标准域名，旧浏览器入口跳转，旧设备的上报 API 继续接受原地址。用浏览器、既有设备上报和固定 SSH 身份分别验收；如失败，先恢复原 SSH 的公网监听及管理台原先的对外地址。
 
 ## 日常操作
 

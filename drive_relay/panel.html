@@ -5,7 +5,7 @@
 <p id="message" role="status" aria-live="polite"></p>
 <section id="statusCard" class="hero" hidden><div class="hero-heading"><div><div class="kicker">实际传输线路</div><h2 id="route">正在读取</h2></div><span id="ownerBadge" class="badge"></span></div><p id="reason"></p>
 <div class="path"><span>这台电脑</span><i></i><span id="via">中继</span><i></i><span>NAS</span></div>
-<div class="metrics"><div><small>Drive 活动连接</small><strong id="connections">—</strong></div><div><small>新版路由服务</small><strong id="service">—</strong></div><div><small>本机固定入口</small><strong id="endpoint" class="mono">—</strong></div></div></section>
+<div class="metrics"><div><small>Drive 活动连接</small><strong id="connections">—</strong></div><div><small>本机传输程序</small><strong id="service">—</strong></div><div><small>本机固定入口</small><strong id="endpoint" class="mono">—</strong></div></div></section>
 <section id="onboarding" class="card" hidden><h2>接入这台电脑</h2><p>已有配对码可在下方连接设备管理台，也可以导入管理员发来的接入文件。</p>
 <form id="join"><label>接入文件<input id="invite" required type="file" accept=".json,application/json"></label><details><summary>本机端口与安装路径</summary><div class="grid"><label>本机端口<input id="joinPort" type="number" value="16690" min="1" max="65535"></label><label>Drive 应用路径<input id="drivePath" placeholder="默认安装位置"></label></div></details>
 <div class="actions"><button type="button" id="preflight" class="secondary">检查环境</button><button type="submit">导入接入文件</button></div></form><ul id="checks"></ul></section>

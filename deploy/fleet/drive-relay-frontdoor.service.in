@@ -1,0 +1,18 @@
+[Unit]
+Description=Drive Relay shared HTTPS and SSH entry
+After=network-online.target drive-relay-fleet-web.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStartPre=/usr/sbin/haproxy -c -q -f /etc/drive-relay-fleet/shared-443.cfg
+ExecStart=/usr/sbin/haproxy -W -db -f /etc/drive-relay-fleet/shared-443.cfg
+Restart=on-failure
+RestartSec=2
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+
+[Install]
+WantedBy=multi-user.target

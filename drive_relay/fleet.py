@@ -107,6 +107,7 @@ class Handler(BaseHTTPRequestHandler):
             assets = {
                 "/": ("fleet.html", "text/html; charset=utf-8"),
                 "/fleet.js": ("fleet.js", "text/javascript"),
+                "/fleet.css": ("fleet.css", "text/css; charset=utf-8"),
                 "/panel.css": ("panel.css", "text/css"),
             }
             if self.path in assets:

@@ -1,0 +1,26 @@
+global
+    maxconn 4096
+    user haproxy
+    group haproxy
+
+defaults
+    mode tcp
+    timeout connect 5s
+    timeout client 24h
+    timeout server 24h
+
+frontend drive_public
+    bind @PUBLIC_IP@:443
+    tcp-request inspect-delay 3s
+    acl tls_client req.ssl_hello_type 1
+    acl ssh_client req.payload(0,4) -m str SSH-
+    tcp-request content accept if tls_client
+    tcp-request content accept if ssh_client
+    use_backend drive_https if tls_client
+    default_backend drive_ssh
+
+backend drive_https
+    server management 127.0.0.1:19443 send-proxy-v2
+
+backend drive_ssh
+    server transport @SSH_ADDRESS@

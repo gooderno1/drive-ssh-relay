@@ -65,7 +65,8 @@ def main():
     arg.add_argument("--domain", required=True)
     arg.add_argument("--invite", type=Path, required=True)
     arg.add_argument("--host-key", type=Path, required=True)
-    arg.add_argument("--https-port", type=int, default=8443)
+    arg.add_argument("--https-port", type=int, default=443, help="HTTPS listener on this VPS")
+    arg.add_argument("--public-https-port", type=int, help="port used by browsers behind a front end")
     args = arg.parse_args()
     if os.geteuid() != 0:
         raise SystemExit("run as root")
@@ -78,6 +79,7 @@ def main():
 
     domain = hostname(args.domain)
     https = port(args.https_port)
+    exposed = port(args.public_https_port) if args.public_https_port is not None else https
     invitation = onboard.read_invite(args.invite)
     profile, routes = onboard.parse_invite(invitation)
     key = args.host_key.resolve(strict=True)
@@ -94,6 +96,9 @@ def main():
     if not cert.is_file():
         raise ValueError("provision the HTTPS certificate first")
     new = not (CONFIG / "settings").exists()
+    shared = CONFIG / "shared-https.conf"
+    if shared.exists() and (exposed != 443 or https == 443):
+        raise ValueError("this shared entry requires its existing HTTPS listener and --public-https-port 443")
     if new:
         for p in (https, profile.ssh_port, 18441):
             with socket.socket() as probe:
@@ -108,7 +113,7 @@ def main():
     os.chown(download, usr.pw_uid, usr.pw_gid)
     put(download / "drive-ssh-relay.zip", (release / "client.zip").read_bytes(), 0o600, usr)
     put(DATA / "invite.json", args.invite.read_bytes(), 0o600, usr)
-    authority = domain if https == 443 else domain + ":" + str(https)
+    authority = domain if exposed == 443 else domain + ":" + str(exposed)
     put(CONFIG / "settings", ("ORIGIN=https://" + authority + "\n").encode())
     web = (
         (HERE / "web.conf.in")
@@ -117,6 +122,11 @@ def main():
         .replace("@AUTHORITY@", authority)
         .replace("@HTTPS_PORT@", str(https))
     )
+    if shared.exists():
+        fragment = (HERE / "shared-https.conf.in").read_text().replace("@DOMAIN@", domain)
+        put(shared, fragment.encode())
+        web = web.replace("  server {", "  include /etc/drive-relay-fleet/shared-https.conf;\n  server {", 1)
+        web = web.replace("    location / {", "    location = / { return 308 https://" + domain + "/; }\n    location / {", 1)
     ssh = (
         (HERE / "sshd_config.in")
         .read_text()

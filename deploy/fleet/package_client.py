@@ -33,6 +33,7 @@ MODULES = (
     "runtime.py",
     "services.py",
     "fleet.html",
+    "fleet.css",
     "fleet.js",
     "panel.html",
     "panel.css",

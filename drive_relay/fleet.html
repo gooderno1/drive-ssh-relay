@@ -1,10 +1,40 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>设备管理 · Drive Relay</title><link rel="stylesheet" href="/panel.css"><script src="/fleet.js" defer></script></head><body>
-<header><div class="bar"><span class="brand"><span class="brandmark" aria-hidden="true">↗</span>Drive Relay</span><span class="barlabel">设备管理台</span><button id="logout" class="barlink quiet" hidden>退出登录</button></div></header>
-<main class="wrap"><p id="message" role="status" aria-live="polite"></p>
-<section id="login" class="card login" hidden><span class="brandmark" aria-hidden="true">↗</span><h1>管理员登录</h1><p>登录以查看设备、设置线路和添加新电脑。</p><form id="loginForm"><label>管理员密码<input id="password" type="password" autocomplete="current-password" required></label><button>登录管理台</button></form></section>
-<div id="board" hidden><div class="pagehead"><div><p class="eyebrow">Synology Drive</p><h1>设备管理</h1></div><button class="secondary" id="refresh">刷新</button></div>
-<section class="hero"><div class="kicker">设备状态</div><h2 id="summary"></h2><div class="metrics"><div><small>已登记</small><strong id="total"></strong></div><div><small>最近在线</small><strong id="online"></strong></div><div><small>配置待确认</small><strong id="pending"></strong></div></div></section>
-<div class="columns"><div><section class="card"><h2>我的设备</h2><div id="devices"></div></section></div><div><section class="card"><h2>新设备接入</h2><p>下载客户端，在新电脑打开，再输入一次性配对码。</p><div class="actions"><a id="download" class="button secondary" href="/download/client.zip" download>下载 Windows / macOS 客户端</a></div>
-<form id="invite"><label>设备名称<input id="name" required maxlength="64" placeholder="例如：家庭笔记本"></label><button>生成配对码</button></form>
-<div id="ticket" hidden><label>配对码<pre id="code"></pre></label><p id="expiry"></p><button class="secondary" id="copy">复制连接信息</button></div>
-<details><summary>首次安装说明</summary><p>安装 Python 3.9 或更高版本及 Synology Drive Client。解压客户端，Windows 双击 Install Relay.vbs，macOS 打开 Install Relay.command。在本机页填写管理台地址和配对码，再从这里的设备详情授权 SSH 传输。</p></details></section></div></div><footer><span id="version"></span></footer></div></main></body></html>
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>连接总览 · Drive Relay</title>
+  <link rel="stylesheet" href="/fleet.css"><script src="/fleet.js" defer></script>
+</head>
+<body>
+  <header class="mast"><div class="mast-in"><span class="brand"><i class="brandmark" aria-hidden="true"></i>Drive Relay</span><span class="mast-context">设备管理台</span><button type="button" id="logout" class="header-action" hidden>退出登录</button></div></header>
+  <main>
+    <p id="message" class="notice" role="status" aria-live="polite" hidden></p>
+    <section id="login" class="login-card" hidden>
+      <div class="login-art"><h2>Synology Drive<br>连接管理</h2><div class="sample-path"><span>家庭网络</span><i></i><b>NAS 直连</b></div><div class="sample-path"><span>异地网络</span><i></i><b>VPS 中继</b></div></div>
+      <div class="login-body"><h1 id="loginTitle">管理员登录</h1><p id="loginIntro">登录后查看设备连接，管理线路和新设备接入。</p><form id="loginForm"><label for="password">管理员密码</label><input id="password" type="password" autocomplete="current-password" required><button class="primary" id="loginButton">登录管理台</button></form></div>
+    </section>
+    <div id="board" hidden>
+      <div class="page-title"><div><h1>连接总览</h1><p id="updated">正在获取设备上报</p></div><div class="toolbar"><button type="button" id="refresh" class="subtle">刷新</button><button type="button" id="openPair" class="primary"><span aria-hidden="true">＋</span> 接入设备</button></div></div>
+      <div class="grid-home">
+        <section class="route-card" aria-labelledby="routeLabel">
+          <div class="route-top"><h2 id="routeLabel">所选设备的线路</h2><span id="presence" class="chip darkchip">等待上报</span></div>
+          <h3 id="routeTitle">暂无设备</h3><p id="routeNote"></p>
+          <div id="path" class="route-path" hidden><span class="endpoint"><i class="glyph pc" aria-hidden="true"></i><b>电脑</b></span><span class="wire"></span><span class="endpoint"><i id="middleIcon" class="glyph relay" aria-hidden="true"></i><b id="middle"></b></span><span class="wire"></span><span class="endpoint"><i class="glyph nas" aria-hidden="true"></i><b>NAS</b></span></div>
+        </section>
+        <section class="card fleet-health" aria-labelledby="fleetHeading"><h2 id="fleetHeading">设备概况</h2><dl><div><dt><i class="dot good"></i>在线设备</dt><dd id="online">—</dd></div><div><dt><i class="dot"></i>已登记设备</dt><dd id="total">—</dd></div><div><dt><i class="dot" id="pendingDot"></i>策略待确认</dt><dd id="pending">—</dd></div></dl></section>
+      </div>
+      <section class="card inventory" aria-labelledby="devicesHeading"><div class="section-heading"><h2 id="devicesHeading">设备列表</h2><span id="listCount"></span></div>
+        <div class="table-wrap"><table><thead><tr><th scope="col">设备</th><th scope="col">在线状态</th><th scope="col">实际线路</th><th scope="col">Drive 连接</th><th scope="col">最后上报</th><th scope="col"><span class="sr">操作</span></th></tr></thead><tbody id="devices"></tbody></table></div>
+        <p id="empty" hidden>还没有已登记的设备。点击「接入设备」添加第一台电脑。</p>
+      </section>
+      <footer><span id="version"></span><span>设备通常每 45 秒上报</span></footer>
+    </div>
+  </main>
+  <dialog id="deviceDialog" aria-labelledby="deviceName"><div class="sheet-head"><span>设备详情</span><button class="close" type="button" aria-label="关闭设备详情">×</button></div><h2 id="deviceName"></h2><div id="detail"></div><p id="detailStatus" role="status"></p></dialog>
+  <dialog id="pairDialog" aria-labelledby="pairTitle"><div class="sheet-head"><span>设备接入</span><button class="close" type="button" aria-label="关闭接入窗口">×</button></div><h2 id="pairTitle">接入一台电脑</h2>
+    <section><h3>安装客户端</h3><p>在新电脑上解压下载包，Windows 双击 Install Relay.vbs，macOS 打开 Install Relay.command。</p><a id="download" class="secondary action" href="/download/client.zip" download>下载 Windows / macOS 客户端</a></section>
+    <section><h3>配对这台设备</h3><form id="invite"><label for="name">设备名称</label><input id="name" required maxlength="64" placeholder="例如，家庭笔记本"><button class="primary">生成配对码</button></form>
+      <div id="ticket" class="ticket" hidden><label>一次性配对码</label><code id="code"></code><p id="expiry"></p><button class="secondary" id="copy" type="button">复制地址和配对码</button></div>
+      <p>在新电脑的本机页输入管理台地址和配对码，再到设备详情授权 SSH 传输。</p></section><p id="pairStatus" role="status"></p>
+  </dialog>
+</body></html>
