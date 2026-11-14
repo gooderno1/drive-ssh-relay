@@ -41,7 +41,7 @@ function display(data, force=false) {
   $("endpoint").textContent="127.0.0.1:"+data.local_port; $("vps").textContent=data.vps;
   $("deviceKey").textContent=data.device_public_key||"—";
   const actual=data.transport||{}, external=actual.kind==="legacy", other=actual.kind==="other";
-  $("route").textContent=({vps:"VPS 中继",lan:"家庭局域网直连"})[actual.route]||(other?"入口由其他程序占用":"尚无可确认的线路");
+  $("route").textContent=({vps:"VPS 中继",lan:"家庭局域网直连"})[actual.route]||(runtime.route==="unavailable"?"手动直连暂不可用":other?"入口由其他程序占用":"尚无可确认的线路");
   $("via").textContent=actual.route==="lan"?"家庭局域网":actual.route==="vps"?"VPS 中继":"等待连接";
   $("ownerBadge").textContent=({legacy:"固定中继程序",managed:"选路程序运行中",idle:"入口空闲",other:"入口已占用"})[actual.kind]||"状态待确认";
   $("ownerBadge").className="badge"+(other||actual.kind==="idle"?" wait":"");
@@ -53,7 +53,7 @@ function display(data, force=false) {
   for(const btn of document.querySelectorAll("[data-op]"))btn.disabled=external||other||(btn.dataset.op==="stop"&&runtime.phase==="inactive");
   if (!loaded||force) { for(const [key,val] of Object.entries(data.routing)) $(key).value=val; loaded=true; toggle(); }
 }
-function toggle(){ $("lanFields").hidden=$("mode").value!=="auto"; }
+function toggle(){ $("lanFields").hidden=$("mode").value==="relay"; }
 $("mode").addEventListener("change",toggle);
 const guarded=fn=>async event=>{event.preventDefault();const control=event.submitter||event.currentTarget;if(control.tagName==="BUTTON")control.disabled=true;try{await fn();}catch(e){note(e.message,true);}finally{if(control.tagName==="BUTTON")control.disabled=false;}};
 const args=()=>({local_port:Number($("joinPort").value),drive_path:$("drivePath").value||null});

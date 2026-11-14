@@ -51,15 +51,17 @@ function action(fn, target="message") {
   };
 }
 const routeNames = {lan:"家庭直连", vps:"VPS 中继"};
+const routeModes = {auto:"自动 · 在家直连，异地走 VPS", relay:"手动 · VPS 中继", lan:"手动 · 仅 NAS 直连"};
 const platforms = {darwin:"macOS", win32:"Windows", linux:"Linux"};
 const onlineText = d => d.disabled ? "已停用" : d.online ? "在线" : d.seen ? "离线" : "待上报";
 const localDate = t => t ? new Date(t*1000).toLocaleString("zh-CN",{hour12:false}) : "尚未上报";
 function routeOf(d) {
+  if(d.status.lan_issue) return d.status.lan_issue==="nas_identity_mismatch"?"NAS 身份校验失败":"NAS 直连不可达";
   return routeNames[d.status.route] || ({idle:"入口空闲",other:"待核实"})[d.status.kind] || "待上报";
 }
 function modeOf(d) {
   if (d.status.kind === "legacy") return "固定中继程序";
-  if (d.status.kind === "managed") return "自动选路程序";
+  if (d.status.kind === "managed") return "选路程序";
   return ({idle:"入口空闲",other:"其他程序持有入口"})[d.status.kind] || "待设备确认";
 }
 function presence(d) { return make("span",onlineText(d),"chip"+(d.online?"":" off")); }
@@ -121,7 +123,11 @@ function disclosure(label) {const el=make("details");el.append(make("summary",la
 function field(label,input) {const el=make("label",label);el.append(input);return el;}
 function policyForm(d) {
   const section=disclosure("线路策略"),form=make("form"),mode=make("select");
-  for(const [value,label] of [["auto","家庭直连优先"],["relay","始终走 VPS"]]){const opt=make("option",label);opt.value=value;mode.append(opt);}
+  for(const [value,label] of Object.entries(routeModes)){
+    const supported = value!=="lan" || d.status.supports_manual_lan;
+    const opt=make("option",supported ? label : label+"（需更新客户端）");
+    opt.value=value;opt.disabled=!supported;mode.append(opt);
+  }
   mode.value=d.policy.mode;form.append(field("保存的策略",mode));
   const inputs={}, advanced=disclosure("家庭 NAS 参数");
   for(const [key,label] of Object.entries({lan_ip:"NAS 局域网 IPv4",nas_name:"NAS 证书名称",cert_sha256:"证书 SHA-256",drive_port:"Drive 端口",verify_port:"DSM HTTPS 端口"})){
@@ -156,6 +162,7 @@ function openDevice(d) {
   fact(facts,"Drive 活动连接",Number.isInteger(d.status.connections)?d.status.connections+" 条":"未上报");
   fact(facts,"最后上报",localDate(d.seen));fact(facts,"策略确认",d.ack===d.rev?"设备已保存 v"+d.rev:"等待保存 v"+d.rev);
   fact(facts,"新设备 SSH 入口",d.disabled?"已停用":d.ssh_granted?"已授权":"待授权");
+  if(d.status.mode && d.status.kind==="managed") fact(facts,"正在执行",routeModes[d.status.mode]);
   const detail=by("detail");detail.replaceChildren(facts);
   if(d.status.kind==="legacy")detail.append(make("p","这台电脑固定经 VPS 传输。家庭直连和外出自动切换要在这台电脑启用选路程序后才生效。","equipment-note"));
   if(!d.disabled)detail.append(policyForm(d),permissions(d));

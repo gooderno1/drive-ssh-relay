@@ -49,7 +49,7 @@ def parser():
     action = route.add_subparsers(dest="action", required=True)
     action.add_parser("show")
     update = action.add_parser("set")
-    update.add_argument("--mode", choices=["auto", "relay"])
+    update.add_argument("--mode", choices=["auto", "relay", "lan"])
     for param in ("lan-ip", "nas-name", "cert-sha256"):
         update.add_argument("--" + param)
     for param in ("drive-port", "verify-port"):
@@ -106,7 +106,7 @@ def main(argv=None):
         elif args.cmd == "capabilities":
             print(json.dumps(dict(schema=onboard.SCHEMA, version=__version__,
                   commands=["preflight", "setup", "status", "doctor", "config show", "config set", "service", "panel", "probe", "fleet"],
-                  modes=["auto", "relay"], exit_codes={"0":"success", "1":"invalid input or runtime error",
+                  modes=["auto", "relay", "lan"], exit_codes={"0":"success", "1":"invalid input or runtime error",
                   "2":"prerequisite, health or verification incomplete"}), indent=2))
         elif args.cmd == "preflight":
             result = onboard.preflight(state, args.local_port, args.drive_path)

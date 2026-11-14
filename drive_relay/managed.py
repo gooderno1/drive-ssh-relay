@@ -94,6 +94,11 @@ def sync(state):
     current = onboard.describe(state)
     active = current.get("transport", {})
     report = {k: active.get(k) for k in ("kind", "route", "connections")}
+    report["supports_manual_lan"] = True
+    runtime_status = current.get("runtime", {})
+    report["mode"] = runtime_status.get("mode")
+    if runtime_status.get("route") == "unavailable":
+        report["lan_issue"] = runtime_status.get("route_reason")
     report.update(
         platform=sys.platform,
         phase=current.get("runtime", {}).get("phase", "unknown"),

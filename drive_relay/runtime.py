@@ -230,6 +230,8 @@ def doctor(state):
               "profile_supervisor_active": active,
               "local_forward_tcp" if p.role == "client" else "drive_server_tcp":
                   (active and not local_free(target)) if p.role == "client" else tcp(LOOPBACK, target)}
+    if p.role == "client" and status.get("route") == "unavailable":
+        checks["selected_path_available"] = False
     # On a client, connecting to -L only tests accept(). On the NAS, connecting
     # to 6690 tests the listener. A completed end-to-end file probe is separate.
     detail = status.get("detail")

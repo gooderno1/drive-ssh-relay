@@ -17,7 +17,7 @@
 | 导入管理员给的公开参数 | `setup --invite relay-invite.json --local-port 17690` | 成功后将 `device_public_key` 传给 VPS 管理员授权。重复导入相同文件保持设备身份及已保存的选路策略 |
 | 核对身份并启动 | VPS 上 `sudo python3 deploy/vps/server.py authorize client laptop laptop.pub`；桌面上 `service install` | 桌面以后登录自启。NAS 已有可用回连时复用 |
 | 查看当前线路 | `status`、`doctor` | `status.runtime.route` 为 `lan` 或 `vps`。查看 `route_reason`、`detail`、`connections`、`switched_at`。NAS 或未运行的客户端可能没有 `route` |
-| 调整策略 | `config show`、`config set --mode relay` | 保存到私有配置，正在运行的新版后台下一轮检查会应用。要恢复自动，用 `config set --mode auto` |
+| 调整策略 | `config show`、`config set --mode relay`、`config set --mode lan`、`config set --mode auto` | 依次为查看、手动 VPS、手动 NAS、恢复自动。后两种需要家庭 NAS 地址与可信身份；手动 NAS 不可用时不会转用 VPS。用 `status` 对照实际线路和原因 |
 | 配置旧接入文件的家庭信息 | `config set --mode auto --lan-ip 192.168.1.20 --nas-name nas.example.net` | 填管理员提供的 NAS 地址、可信 HTTPS 名称或 SHA-256 指纹，可传 `--verify-port` 和 `--drive-port` |
 | 证明真实同步 | `probe send` 和另一端 `probe ack` | 先按 `--help` 了解参数，在各自同步目录验证文件字节和 SHA-256，再反向重复 |
 

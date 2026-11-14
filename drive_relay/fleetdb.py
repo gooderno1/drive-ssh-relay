@@ -237,6 +237,9 @@ class Store:
             ),
             connections=count,
             version=version,
+            supports_manual_lan=status.get("supports_manual_lan") is True,
+            mode=enum("mode", ("auto", "relay", "lan", None), None),
+            lan_issue=enum("lan_issue", ("lan_unavailable", "nas_identity_mismatch", None), None),
         )
         with self.db(True) as c:
             row = c.execute(
@@ -273,6 +276,10 @@ class Store:
         if type(revision) is not int:
             raise ValueError("invalid revision")
         with self.db(True) as c:
+            if routes.mode == "lan":
+                device = c.execute("SELECT status FROM devices WHERE id=?", (dev,)).fetchone()
+                if not device or not json.loads(device["status"]).get("supports_manual_lan"):
+                    raise ValueError("请先更新该设备客户端，并等待它上报手动直连能力")
             row = c.execute(
                 "UPDATE devices SET policy=?,rev=rev+1 WHERE id=? AND rev=? AND disabled=0",
                 (json.dumps(asdict(routes)), dev, revision),

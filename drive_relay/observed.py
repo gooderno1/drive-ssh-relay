@@ -85,7 +85,8 @@ def classify(rows, profile, runtime, image, legacy):
         and apps.get(pid, "").startswith("cloud-drive-")
     )
     if runtime.get("supervisor") == owner and runtime.get("phase") in ("routing", "ssh_running"):
-        return {"kind": "managed", "route": runtime.get("route"), "connections": count}
+        route = runtime.get("route")
+        return {"kind": "managed", "route": route if route in ("lan", "vps") else None, "connections": count}
     try:
         target = str(ipaddress.IPv4Address(profile.host))
     except ValueError:
@@ -112,7 +113,7 @@ def transport(state, profile, runtime):
     if runtime.get("phase") in ("routing", "ssh_running"):
         return {
             "kind": "managed",
-            "route": runtime.get("route"),
+            "route": runtime.get("route") if runtime.get("route") in ("lan", "vps") else None,
             "connections": runtime.get("connections"),
         }
     from .runtime import local_free

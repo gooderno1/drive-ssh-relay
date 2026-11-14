@@ -142,6 +142,20 @@ class Management(unittest.TestCase):
         self.http("/api/admin/logout", {}, c)
         self.assertEqual(self.http("/api/admin/overview", cookie=c)[0], 401)
 
+    def test_only_capable_devices_receive_manual_lan(self):
+        token = "s" * 43
+        code = self.db.invite("desktop")["code"]
+        dev = self.db.pair(code, key(), token, routing.Routes())["id"]
+        lan = asdict(routing.Routes("lan", "192.168.10.2", "nas.example.test"))
+        with self.assertRaises(ValueError):
+            self.db.policy(dev, 1, lan)
+        self.db.checkin(token, {"status": {"supports_manual_lan": True}})
+        self.assertEqual(self.db.policy(dev, 1, lan)["revision"], 2)
+        self.db.checkin(token, {"ack": 2, "status": {"supports_manual_lan": True,
+                        "mode": "lan", "route": None, "lan_issue": "nas_identity_mismatch"}})
+        device = self.db.devices()[0]
+        self.assertEqual((device["ack"], device["status"]["lan_issue"]), (2, "nas_identity_mismatch"))
+
     def test_desktop_applies_and_acknowledges_selected_device_policy(self):
         store = self.db
         code = store.invite("laptop")["code"]

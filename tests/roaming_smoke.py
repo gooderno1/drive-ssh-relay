@@ -198,7 +198,22 @@ def run():
         subprocess.run([*cli,"config","set","--mode","relay"], check=True, stdout=subprocess.DEVNULL, **config.quiet_kwargs())
         wait_for("vps", "relay_selected")
         exchange("vps")
-        print("passed: LAN, offsite SSH, wrong NAS certificate, home return and live settings; same Drive endpoint, TLS payloads and active-stream reconnect", flush=True)
+        subprocess.run([*cli,"config","set","--mode","lan"], check=True, stdout=subprocess.DEVNULL, **config.quiet_kwargs())
+        wait_for("lan", "home_verified")
+        exchange("lan")
+        mode[0] = "wrong"
+        wait_for("unavailable", "nas_identity_mismatch")
+        before = count.copy()
+        with socket.create_connection(("127.0.0.1", fixed), timeout=4) as conn:
+            try:
+                assert conn.recv(1) == b""
+            except ConnectionResetError:
+                pass
+        assert count == before
+        mode[0] = "home"
+        wait_for("lan", "home_verified")
+        exchange("lan")
+        print("passed: automatic roaming, manual VPS and manual LAN; wrong NAS blocked in manual LAN, recovery, fixed endpoint, TLS payloads and reconnect", flush=True)
 
 
 if __name__ == "__main__":

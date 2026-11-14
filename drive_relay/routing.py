@@ -26,11 +26,11 @@ class Routes:
     cert_sha256: str = ""
 
     def __post_init__(self):
-        if self.mode not in ("auto", "relay"):
-            raise ValueError("mode must be auto or relay")
+        if self.mode not in ("auto", "relay", "lan"):
+            raise ValueError("mode must be auto, relay or lan")
         port(self.drive_port)
         port(self.verify_port)
-        if self.lan_ip or self.mode == "auto":
+        if self.lan_ip or self.mode in ("auto", "lan"):
             ip = ipaddress.IPv4Address(self.lan_ip)
             nets = ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "169.254.0.0/16", "127.0.0.0/8")
             if not any(ip in ipaddress.ip_network(n) for n in nets):
@@ -43,8 +43,8 @@ class Routes:
             if not re.fullmatch("[a-f0-9]{64}", digest):
                 raise ValueError("expected a SHA-256 fingerprint of the DSM HTTPS certificate")
             object.__setattr__(self, "cert_sha256", digest)
-        if self.mode == "auto" and not (self.nas_name or self.cert_sha256):
-            raise ValueError("auto mode requires a trusted NAS certificate name or fingerprint")
+        if self.mode in ("auto", "lan") and not (self.nas_name or self.cert_sha256):
+            raise ValueError("LAN access requires a trusted NAS certificate name or fingerprint")
 
 
 def settings(state):
@@ -206,7 +206,12 @@ class Router:
                         at_home, reason = await asyncio.to_thread(check_home, config)
                     except (OSError, ValueError, TypeError):
                         config, at_home, reason = Routes(), False, "invalid_routing_settings"
-                    route = "lan" if at_home else "vps"
+                    if at_home:
+                        route = "lan"
+                    elif config.mode == "lan":
+                        route = "unavailable"
+                    else:
+                        route = "vps"
                     votes = votes + 1 if route != self.route else 0
                     changed = config != self.routes
                     # Fail closed immediately on identity/availability loss. Require
@@ -267,7 +272,7 @@ class Router:
                 except BaseException:
                     sock.close()
                     raise
-            else:
+            elif self.route == "vps":
                 for _ in range(60):
                     if self.backend:
                         break
@@ -275,6 +280,8 @@ class Router:
                 if not self.backend:
                     return
                 upstream, uplink = await asyncio.open_connection(LOOPBACK, self.backend)
+            else:
+                return
             pumps = [asyncio.create_task(pipe(reader, uplink)), asyncio.create_task(pipe(upstream, writer))]
             # Local half-close still permits the final server reply. A remote
             # EOF signals that Drive must reconnect, even if the client is idle.
