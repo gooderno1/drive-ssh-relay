@@ -36,6 +36,9 @@ def parser():
     sub.add_parser("doctor", help="inspect network layers, listener and fresh supervisor state")
     sub.add_parser("status", help="JSON status of the current profile, including selected route")
     sub.add_parser("capabilities", help="machine-readable interface and available actions")
+    fleet=sub.add_parser("fleet",help="pair a desktop with a management server").add_subparsers(dest="action",required=True)
+    pair=fleet.add_parser("join");pair.add_argument("--url",required=True);pair.add_argument("--code-stdin",action="store_true",required=True);pair.add_argument("--local-port",type=int,default=16690)
+    for call in ("sync","watch","install","uninstall"):fleet.add_parser(call)
     for name in ("preflight", "setup"):
         cmd = sub.add_parser(name, help="check desktop prerequisites" if name == "preflight" else "check and enroll a new desktop from an invitation")
         cmd.add_argument("--local-port", type=int, default=16690)
@@ -102,7 +105,7 @@ def main(argv=None):
             print(json.dumps(onboard.describe(state), indent=2))
         elif args.cmd == "capabilities":
             print(json.dumps(dict(schema=onboard.SCHEMA, version=__version__,
-                  commands=["preflight", "setup", "status", "doctor", "config show", "config set", "service", "panel", "probe"],
+                  commands=["preflight", "setup", "status", "doctor", "config show", "config set", "service", "panel", "probe", "fleet"],
                   modes=["auto", "relay"], exit_codes={"0":"success", "1":"invalid input or runtime error",
                   "2":"prerequisite, health or verification incomplete"}), indent=2))
         elif args.cmd == "preflight":
@@ -120,6 +123,13 @@ def main(argv=None):
                 current.update({key: getattr(args, key) for key in current if getattr(args, key, None) is not None})
                 save(state, profile, Routes(**current))
             print(json.dumps(asdict(settings(state)), indent=2))
+        elif args.cmd == "fleet":
+            from . import managed
+            if args.action=="join":result=managed.join(state,args.url,sys.stdin.readline().strip(),args.local_port)
+            elif args.action=="watch":return managed.watch(state)
+            elif args.action=="sync":result=managed.sync(state)
+            else:result=managed.service(state,args.action)
+            print(json.dumps(result))
         elif args.cmd == "panel":
             panel.run(state, args.port, args.open)
         elif args.cmd == "service":

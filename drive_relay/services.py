@@ -49,9 +49,13 @@ def identifier(state):
     return "drive-ssh-relay-" + hashlib.sha256(os.fsencode(os.path.normcase(str(state.resolve())))).hexdigest()[:14]
 
 
-def windows_xml(state, binary, sid):
+def component_id(state,component):
+    return identifier(state) + ("-management" if component=="management" else "")
+
+
+def windows_xml(state, binary, sid, component="relay"):
     pythonw = Path(sys.executable).with_name("pythonw.exe")
-    name = identifier(state)
+    name = component_id(state,component)
     root = ET.Element("Task", version="1.2", xmlns=TASK_NS)
     def tag(parent, key, value=None, **attrs):
         node = ET.SubElement(parent, key, attrs)
@@ -76,12 +80,13 @@ def windows_xml(state, binary, sid):
     tag(restart, "Count", "5")
     action = tag(tag(root, "Actions", Context="Owner"), "Exec")
     tag(action, "Command", str(pythonw))
-    tag(action, "Arguments", subprocess.list2cmdline(["-I", "-B", str(binary), "--state", str(state), "run"]))
+    job=["fleet","watch"] if component=="management" else ["run"]
+    tag(action, "Arguments", subprocess.list2cmdline(["-I", "-B", str(binary), "--state", str(state), *job]))
     return ET.tostring(root, encoding="utf-16", xml_declaration=True)
 
 
-def win_service(action, state, binary):
-    name = identifier(state)
+def win_service(action, state, binary, component="relay"):
+    name = component_id(state,component)
     sch = str(Path(os.environ["WINDIR"]) / "System32" / "schtasks.exe")
     query = command([sch, "/Query", "/TN", name, "/XML"], check=False)
     previous = None
@@ -106,7 +111,7 @@ def win_service(action, state, binary):
         command([str(ps), "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", script])
         for _ in range(40):
             try:
-                with exclusive(state/"run.lock"):
+                with exclusive(state/("fleet.lock" if component=="management" else "run.lock")):
                     return
             except ValueError:
                 time.sleep(.1)
@@ -129,7 +134,7 @@ def win_service(action, state, binary):
     sid = next(csv.reader([who.strip()]))[-1].strip()
     if not sid.startswith("S-1-"):
         raise ValueError("cannot identify current Windows SID")
-    data = windows_xml(state, binary, sid)
+    data = windows_xml(state, binary, sid, component)
     new = ET.fromstring(data)
     if previous is None or any(previous.findtext(".//{*}" + k) != new.findtext(".//{*}" + k)
                                for k in ("Command", "Arguments", "UserId")):
@@ -142,8 +147,8 @@ def win_service(action, state, binary):
     command([sch, "/Run", "/TN", name])
 
 
-def mac_service(action, state, binary):
-    label = "org." + identifier(state)
+def mac_service(action, state, binary, component="relay"):
+    label = "org." + component_id(state,component)
     domain = f"gui/{os.getuid()}"
     target = domain + "/" + label
     plist = Path.home()/"Library"/"LaunchAgents"/(label + ".plist")
@@ -157,7 +162,7 @@ def mac_service(action, state, binary):
             for _ in range(80):
                 if command(["launchctl","print",target],check=False).returncode:
                     try:
-                        with exclusive(state/"run.lock"):
+                        with exclusive(state/("fleet.lock" if component=="management" else "run.lock")):
                             break
                     except ValueError:
                         pass
@@ -169,10 +174,10 @@ def mac_service(action, state, binary):
         return
     if action == "install":
         data = plistlib.dumps(dict(Label=label,
-            ProgramArguments=[sys.executable,"-I","-B",str(binary),"--state",str(state),"run"],
+            ProgramArguments=[sys.executable,"-I","-B",str(binary),"--state",str(state),*(["fleet","watch"] if component=="management" else ["run"])],
             RunAtLoad=True, KeepAlive={"SuccessfulExit":False}, ThrottleInterval=10))
         if plist.exists() and plist.read_bytes() != data:
-            mac_service("stop", state, binary)
+            mac_service("stop", state, binary, component)
         plist.parent.mkdir(parents=True, exist_ok=True)
         atomic(plist, data)
     if command(["launchctl","print",target],check=False).returncode:

@@ -4,7 +4,13 @@
 
 **Windows 和 macOS 自动选路。** Drive 长期使用同一个本机入口。桌面助手确认处于 NAS 所在链路、DSM 身份可信且 Drive 端口可达时直连。外出或身份验证失败时走 VPS。切换会让已有连接重新建立，文件恢复由 Drive 处理。[选路原理](docs/operations.md#routes)
 
-### 新电脑只做三步
+### 由管理台接入新电脑
+
+1. 管理员登录自建管理台，在「新设备接入」填写电脑名称，下载 Windows / macOS 客户端并生成 15 分钟有效的配对码。
+2. 新电脑安装 Synology Drive Client 和 Python 3.9+。完整解压客户端，Windows 双击 `Install Relay.vbs`，macOS 从访达打开 `Install Relay.command`。在本机页填写管理台 HTTPS 地址和配对码。
+3. 管理员展开这台设备的「SSH 公钥与设备权限」并授权。新电脑在本机页点击「安装并启动」，首次配置 Drive 的固定本机入口。管理台此后能显示实际线路和配置确认版本，并按设备设置家庭直连优先或始终中转。[自建管理台及迁移](docs/fleet.md)
+
+### 使用接入文件的设备
 
 1. 下载并完整解压源码包。Windows 双击 `Open Relay.vbs`，macOS 打开同目录的 `Drive Relay.app`。两者打开本机控制台。也可在解压目录执行 `python3 relay.py panel --open`（Windows 可用 `python`）。启动器会检查 Python，页面能检查 Drive Client、OpenSSH、登录启动组件和端口，缺项会给出下一步。[下载版本](https://github.com/gooderno1/drive-ssh-relay/releases)
 2. 导入管理员提供的接入文件，把页面显示的**设备公钥**交给管理员授权，然后点击「安装并启动」。含家庭网络信息的 v2 文件会启用自动选路，已有 v1 文件默认始终中转，可在配置页补充家庭 NAS 信息。

@@ -37,7 +37,13 @@ class LocalPanel(ThreadingHTTPServer):
             if action == "config":
                 save(self.state, load(self.state), Routes(**data))
             elif action in ("install", "stop", "start"):
+                if action in ("install","start") and onboard.describe(self.state).get("transport",{}).get("kind") in ("legacy","other"):
+                    raise ValueError("固定入口已有程序运行。请使用备用端口，或从现有服务的迁移入口切换。")
                 services.service(action, self.state, announce=False)
+            elif action=="fleet-join":
+                from . import managed
+                managed.join(self.state,data["url"],data["code"],data.get("local_port",16690))
+                managed.service(self.state,"install")
             else:
                 raise ValueError("unknown operation")
         return onboard.describe(self.state)

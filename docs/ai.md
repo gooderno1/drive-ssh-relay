@@ -8,6 +8,8 @@
 
 ## 非交互命令
 
+使用设备管理台时，先运行 `capabilities` 和 `preflight`。将管理员提供的一次性配对码通过标准输入送给 `fleet join --url https://drive.example.net:8443 --code-stdin`，再运行 `fleet install` 安装独立的管理上报任务。管理员在网页核准 SSH 公钥后才从新设备执行 `service install`。用 `fleet sync` 获取策略版本和实际线路。已配对设备的 `status.transport` 显示实际监听者与线路，`status.runtime` 显示新版路由服务。凭证保存在设备私有状态目录。页面入口、端口选择与迁移步骤见 [自建管理台](fleet.md)。
+
 | 目标 | 命令 | 读取结果与下一步 |
 | --- | --- | --- |
 | 了解本机版本和能力 | `capabilities` | JSON 的 `schema`、`version`、支持的命令、模式及退出码 |

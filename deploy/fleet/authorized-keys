@@ -1,0 +1,34 @@
+#!/usr/bin/python3
+"""OpenSSH AuthorizedKeysCommand. Run under the unprivileged management account."""
+
+import json
+import re
+import sqlite3
+import sys
+from pathlib import Path
+
+
+def main():
+    if (
+        len(sys.argv) != 3
+        or sys.argv[1] != "dr-client"
+        or not re.fullmatch(r"[A-Za-z0-9+/]{68}", sys.argv[2])
+    ):
+        return
+    root = Path("/var/lib/drive-relay-fleet")
+    conf = json.loads((root / "invite.json").read_text())
+    bridge = conf["bridge_port"]
+    if type(bridge) is not int or not 1 <= bridge <= 65535:
+        return
+    key = "ssh-ed25519 " + sys.argv[2]
+    con = sqlite3.connect((root / "fleet.sqlite3").as_uri() + "?mode=ro", uri=True, timeout=2)
+    allowed = con.execute(
+        "SELECT 1 FROM devices d JOIN ssh_grants g ON g.device=d.id WHERE d.pub=? AND d.disabled=0",
+        (key,),
+    ).fetchone()
+    if allowed:
+        print(f'restrict,port-forwarding,permitopen="127.0.0.1:{bridge}" ' + key)
+
+
+if __name__ == "__main__":
+    main()

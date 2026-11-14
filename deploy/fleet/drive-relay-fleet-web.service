@@ -1,0 +1,13 @@
+[Unit]
+Description=Drive Relay HTTPS management entry
+After=network.target drive-relay-fleet.service
+[Service]
+Type=forking
+PIDFile=/run/drive-relay-fleet-web.pid
+ExecStartPre=/usr/sbin/nginx -t -c /etc/drive-relay-fleet/web.conf
+ExecStart=/usr/sbin/nginx -c /etc/drive-relay-fleet/web.conf
+ExecReload=/bin/kill -HUP $MAINPID
+ExecStop=/bin/kill -QUIT $MAINPID
+Restart=on-failure
+[Install]
+WantedBy=multi-user.target

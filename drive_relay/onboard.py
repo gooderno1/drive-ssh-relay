@@ -9,6 +9,7 @@ import sys
 from . import __version__, runtime
 from .config import Profile, executable, fingerprint, initialize, load, port
 from .routing import Routes, save, settings
+from .observed import transport
 
 SCHEMA = "drive-ssh-relay/desktop-v1"
 DOWNLOAD = "https://www.synology.com/support/download"
@@ -104,6 +105,15 @@ def describe(state):
         profile = load(state)
         result.update(role=profile.role, vps=profile.host, local_port=profile.local_port,
                       routing=asdict(settings(state)), runtime=runtime.snapshot(state))
+        if profile.role == "client":
+            result["transport"] = transport(state, profile, result["runtime"])
+    connection=state/"fleet.json"
+    if connection.is_file():
+        value=json.loads(connection.read_text(encoding="utf-8"))
+        result["fleet"]={"url":value["url"],"name":value["name"],"linked":True}
+    elif (state/"fleet-url.txt").is_file():
+        result["fleet"]={"url":(state/"fleet-url.txt").read_text(encoding="utf-8").strip(),"linked":False}
+    if result["enrolled"]:
         public = state / "identity.pub"
         if public.is_file():
             result["device_public_key"] = public.read_text(encoding="ascii").strip()

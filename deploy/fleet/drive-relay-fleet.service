@@ -1,0 +1,18 @@
+[Unit]
+Description=Drive Relay device management
+After=network.target
+[Service]
+User=drive-fleet
+Group=drive-fleet
+WorkingDirectory=/opt/drive-relay-fleet/current
+EnvironmentFile=/etc/drive-relay-fleet/settings
+ExecStart=/usr/bin/python3 -B -m drive_relay.fleet serve --data /var/lib/drive-relay-fleet --origin ${ORIGIN} --port 18441
+Restart=on-failure
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/drive-relay-fleet
+UMask=0077
+[Install]
+WantedBy=multi-user.target

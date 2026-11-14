@@ -11,7 +11,7 @@ import time
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
-from drive_relay import config, services
+from drive_relay import config, managed, services
 
 
 def wait(fn, seconds=18):
@@ -58,6 +58,20 @@ def main():
             services.service("install",state)
             wait(blocked)
             assert status()["supervisor"]==pid
+            if sys.platform in ("win32", "darwin"):
+                # A disconnected loopback target exercises the reporter without contacting a real management server.
+                with socket.socket() as unused:
+                    unused.bind(("127.0.0.1", 0))
+                    offline = "https://127.0.0.1:" + str(unused.getsockname()[1])
+                    managed.write(state / "fleet.json", {"url": offline, "token": "fixture-only", "name": "test", "id": "test"})
+                    try:
+                        managed.service(state, "install")
+                        wait(lambda: (state / "fleet-last.json").exists())
+                        assert status()["supervisor"] == pid
+                    finally:
+                        managed.service(state, "uninstall")
+                    assert status()["supervisor"] == pid
+                    print("passed: management reports and uninstalls independently of transport", flush=True)
             services.service("stop",state)
             services.service("start",state)
             wait(lambda:blocked() and status()["supervisor"]!=pid)
