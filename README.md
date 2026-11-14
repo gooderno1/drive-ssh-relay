@@ -2,6 +2,8 @@
 
 给 Synology Drive 桌面客户端自建 TCP 中继。NAS 和电脑各自向一台 Linux VPS 建立出站 SSH 连接，家里有公网地址或入站端口映射都不是前提。原来的同步任务继续由 Synology Drive 管理，VPS 只转发连接。项目采用 MIT 许可证，与 Synology 无隶属关系。
 
+**v0.1.0 可用于试点。** 已验证 Windows、macOS 和 Linux 端侧，以及穿过两段 SSH 的传输和断线恢复。发行包在真实 DSM 上的开机回连和与直连的同条件速度对照，是下一阶段的验收项。准备试用可从下方“首次使用”开始。[版本下载](https://github.com/gooderno1/drive-ssh-relay/releases/tag/v0.1.0) · [当前进展与试点计划](docs/DEVELOPMENT_PLAN.md)
+
 ```text
 Drive Client ── 本机 127.0.0.1:16690 ── SSH 本地转发 ─┐
                                                      ├─ VPS 127.0.0.1:16690

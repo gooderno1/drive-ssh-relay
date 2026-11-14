@@ -1,6 +1,23 @@
-# First release acceptance
+# 项目目标与试点计划
 
-1. Isolate a new repository and use generated example credentials. Review the VPS forwarding policy and both endpoint roles.
-2. Implement endpoint enrollment, startup, diagnosis, file verification and retirement. Keep all live configuration and keys in the operator's state directory.
-3. Run Windows and POSIX checks. In a disposable Linux runner deploy the shipped server, forward bytes through both SSH connections, interrupt a leg, verify recovery, then remove the service.
-4. Document licensing, deployment, measurements, failure modes and the difference between a verified file and a listening socket.
+**目标**是让已有 Synology Drive 任务的用户能自己部署一台中继，在直连慢或不稳时多一条路径可选。用户应能验证文件双向到达、判断哪条线路在自己的网络上更合适，并在试用后恢复原连接。
+
+**截至 2026-11-14，v0.1.0 已公开发布，可开始单机试点。** 三平台端侧已通过检查。Ubuntu 上的真实双 SSH 测试已验证双向 TLS 数据、故障恢复、撤销设备和卸载。发行包在真实 DSM 上重启后的表现，以及中继带来的实际速度变化，尚待现场测量。[发行版](https://github.com/gooderno1/drive-ssh-relay/releases/tag/v0.1.0) · [版本测试记录](https://github.com/gooderno1/drive-ssh-relay/actions/runs/43488981107)
+
+## 首版交付了什么
+
+| 使用者原先遇到的困难 | 已交付的能力 | 为什么这样做 |
+| --- | --- | --- |
+| 新设备要重新编辑现场脚本、填写连接参数 | VPS 导出接入文件，NAS 和电脑分别导入并生成设备密钥。管理员可逐台授权、轮换和撤销 | 接入参数可复用，丢失设备时只需撤销对应密钥 |
+| 端口被占或中途掉线时，启动脚本可能报健康 | 监督进程检查实例和端口所有权，退避重连。Windows 登录任务全程无窗口 | 避免接错程序，也能在网络短暂中断后恢复 |
+| SSH 和 Drive 日志各自显示正常，使用者仍拿不到完整文件 | 两端可用 `doctor` 查看服务状态，用 `probe send/ack` 验证实际文件 | 接收端必须能读到全部字节且哈希一致。按需占位文件可单独诊断 |
+
+## 下一阶段怎样作决定
+
+| 目标和优先原因 | 谁做什么 | 验收后作什么决定 |
+| --- | --- | --- |
+| **1. 真实 DSM 上可以交付。** 普通 Linux 测试覆盖不到 DSM 的任务调度和用户会话 | 维护者在一台真实 NAS、一台测试电脑和隔离的中继配置上，从发布包按公开手册部署，记录系统版本 | 双向文件哈希一致、DSM 重启后自动回连、恢复原地址后再次校验成功，才扩大试点。若失败，先修对应安装、启动或回退步骤 |
+| **2. 用户可以决定是否切换线路。** 小文件排队、按需下载和线路带宽分别影响体感 | 在同一电脑和目录交替使用直连与中继，每个方向多次传送新的 1 MiB、16 MiB 文件。记录源端写完到对端完整校验的时长、队列背景和异常。测试方法见[设计审查](design-review.md) | 按方向比较中位时长与波动，写明适用网络。测不出稳定收益时保留该网络原有路线 |
+| **3. 减少首次安装的人工步骤。** 先找出使用者实际卡住的环节 | 由首次接触项目的使用者跟随手册试装，维护者记录需要人工协助的步骤，改进后请另一环境复验 | 能独立安装、验证和卸载才算改善。若手工登记 DSM 开机项仍是主要障碍，再投入签名套件 |
+
+部署与回退命令见[运维手册](operations.md)。已关闭的问题及复验方法见[开发记录](../DEVELOPMENT_LOG.md)。

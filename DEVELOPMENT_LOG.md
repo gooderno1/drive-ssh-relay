@@ -1,11 +1,15 @@
-# Development log
+# 开发记录
 
-## v0.1.0
+## 2026-11-14 · v0.1.0
 
-Extract the dedicated VPS SSH service, NAS reverse tunnel and desktop client into a portable distribution. Replace machine-specific profiles with per-device enrollment and a trusted host key. Separate TCP checks from end-to-end file verification; refuse to treat an unrelated listener as a healthy service.
+**首版要解决的是可复用部署。** 原型已经能转发 Drive 连接，但换一台设备就要重配脚本，线路断开后也很难判断文件到底有没有送达。首版把三个角色交付为独立工具。VPS 管理员导出带端口和主机公钥的接入文件，NAS 和电脑各自生成密钥；接收端可以用随机文件核对完整内容。运行状态和私钥保存在仓库外。[首版下载](https://github.com/gooderno1/drive-ssh-relay/releases/tag/v0.1.0)
 
-Windows smoke testing found an asynchronous stop/start race in Task Scheduler. The endpoint now waits for both the scheduler state and the profile lock. Directory names with spaces and long Windows paths are covered by the CLI and the file probe. Runtime state stays outside the repository.
+| 验收时发现的问题 | 修正与结果 |
+| --- | --- |
+| Windows 停止登录任务后立刻启动会争用同一配置。其他程序占用监听端口时，原型也可能报告健康 | 启动器等待任务状态和配置锁释放，另行检测端口冲突。Windows 登录任务的安装、停止、再启动和卸载已实测，带空格目录及长路径有用例覆盖 |
+| macOS 的上一个 LaunchAgent 可能仍在卸载 | 重新注册前等待旧任务卸载和锁释放。macOS 端侧作业已通过 |
+| Linux 上首次测试能传输，但 systemd 停止后 PAM 登录进程仍可能存活 | 专用 sshd 改用公钥认证并关闭 PAM，角色账号使用不可匹配的密码字段。复验中先重启 VPS 中继服务，再断开 NAS 隧道，两次恢复后均成功传输；撤销会拒绝重新认证，卸载会清理服务和角色账号 |
 
-The first Linux integration run transferred data but found that PAM logins could survive a systemd stop. The dedicated daemon now uses public-key authentication with PAM disabled and accounts with a nonmatching password field. A second real integration run verified both SSH sessions reconnect, revocation rejects reconnection, and purge removes the installation. macOS registration waits for launchd to unload the previous job. The trusted public enrollment file carries VPS ports and the pinned key to both endpoints.
+**验收证据。** 发布提交通过 Windows、macOS、Ubuntu 端侧和 Linux 双隧道四项作业。可在项目根目录运行 `python -m unittest discover -s tests -v`，登录环境中的服务启停由 `python tests/service_smoke.py` 复验。两段真实 SSH 和 TLS 数据校验在一次性 Linux 环境中执行。[完整作业记录](https://github.com/gooderno1/drive-ssh-relay/actions/runs/43488981107) · [可复现的测试流程](.github/workflows/test.yml)
 
-Validation is reproducible with `python -m unittest discover -s tests -v`, `python tests/service_smoke.py` on an interactive test host, and the disposable Linux SSH integration job in `.github/workflows/test.yml`. The Linux job uses a trusted TLS responder and two real SSH tunnels. Production DSM file syncing with the new package needs a separate two-device probe. The design derives from a working Synology Drive deployment; results from that earlier deployment are not release-binary benchmarks.
+**待验证。** 原型的现场使用支持选择这种架构。新版仍需在真实 DSM 和桌面客户端上从头安装，并用两端文件和直连对照测量使用收益。[试点目标与验收办法](docs/DEVELOPMENT_PLAN.md)
