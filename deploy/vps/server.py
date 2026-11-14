@@ -219,13 +219,24 @@ def status():
     return 0 if running and public and private else 2
 
 
-def invitation(host):
+def invitation(host, *, lan_ip=None, nas_name=None, drive_port=6690, verify_port=5001, cert_sha256=None):
     if len(host)>253 or not all(re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?", s)
                                 for s in host.split(".")):
         raise ValueError("use the public IPv4 address or DNS name of the VPS")
     ssh_port, bridge = ports()
-    return {"schema":"drive-ssh-relay/v1", "host":host, "ssh_port":ssh_port,
+    data = {"schema":"drive-ssh-relay/v1", "host":host, "ssh_port":ssh_port,
             "bridge_port":bridge, "host_key":ed25519((BASE/"host_ed25519.pub").read_text())}
+    if lan_ip or nas_name or cert_sha256 or drive_port != 6690 or verify_port != 5001:
+        # The VPS installer also works when copied by itself; import the shared
+        # desktop schema only when exporting a v2 desktop invitation.
+        root = str(HERE.parents[1])
+        if root not in sys.path:
+            sys.path.insert(0, root)
+        from drive_relay.routing import Routes
+        from dataclasses import asdict
+        data.update(schema="drive-ssh-relay/v2", routing=asdict(Routes("auto", lan_ip or "", nas_name or "",
+                    number(drive_port), number(verify_port), cert_sha256 or "")))
+    return data
 
 
 def main():
@@ -244,6 +255,11 @@ def main():
     sub.add_parser("host-key")
     invite = sub.add_parser("invite", help="print a public endpoint enrollment file")
     invite.add_argument("--host", required=True, help="public DNS name or IPv4 address")
+    invite.add_argument("--lan-ip", help="on-link IPv4 address of the NAS for automatic routing")
+    invite.add_argument("--nas-name", help="trusted TLS name of the NAS HTTPS service")
+    invite.add_argument("--cert-sha256", help="independently verified SHA-256 of NAS HTTPS leaf certificate (optional)")
+    invite.add_argument("--drive-port", type=number, default=6690)
+    invite.add_argument("--verify-port", type=number, default=5001, help="NAS LAN HTTPS port used for identity checks")
     remove_cmd = sub.add_parser("uninstall")
     remove_cmd.add_argument("--purge", action="store_true", help="also remove role accounts, public key lists and host key")
     args = p.parse_args()
@@ -262,7 +278,8 @@ def main():
             elif args.command == "host-key":
                 print((BASE / "host_ed25519.pub").read_text().strip())
             elif args.command == "invite":
-                print(json.dumps(invitation(args.host),indent=2))
+                print(json.dumps(invitation(args.host, lan_ip=args.lan_ip, nas_name=args.nas_name,
+                     drive_port=args.drive_port, verify_port=args.verify_port, cert_sha256=args.cert_sha256), indent=2))
             elif args.command == "status":
                 return status()
             else:

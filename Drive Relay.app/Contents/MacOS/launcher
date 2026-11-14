@@ -1,0 +1,11 @@
+#!/bin/sh
+root=$(cd "$(dirname "$0")/../../.." && pwd) || exit 1
+for candidate in "$(command -v python3)" /opt/homebrew/bin/python3 /usr/local/bin/python3 /Library/Frameworks/Python.framework/Versions/Current/bin/python3 /usr/bin/python3; do
+    [ -x "$candidate" ] || continue
+    if [ "$candidate" = /usr/bin/python3 ]; then /usr/bin/xcode-select -p >/dev/null 2>&1 || continue; fi
+    "$candidate" -c 'import sys; sys.exit(sys.version_info < (3, 9))' || continue
+    [ "${1:-}" = --check ] && exit 0
+    exec "$candidate" "$root/relay.py" panel --open
+done
+[ "${1:-}" = --check ] || /usr/bin/osascript -e 'display dialog "Install Python 3.9+ from python.org/downloads/macos and open Drive Relay again." buttons {"OK"} default button 1 with title "Drive SSH Relay"'
+exit 2

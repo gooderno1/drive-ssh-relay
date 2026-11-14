@@ -1,0 +1,19 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Drive SSH Relay · 本机控制台</title><link rel="stylesheet" href="/panel.css"><script src="/panel.js" defer></script></head>
+<body><header><div class="wrap top"><strong><i aria-hidden="true"></i>Drive SSH Relay</strong><span>本机控制台</span></div></header>
+<main class="wrap"><h1>连接与配置</h1><p id="message" role="status" aria-live="polite"></p>
+<section id="onboarding" hidden><div class="heading"><h2>接入这台电脑</h2></div>
+<p>选择管理员提供的接入文件。系统会检查已安装的 Synology Drive Client 和中继所需组件。</p>
+<form id="join"><label>接入文件 <input id="invite" required type="file" accept=".json,application/json"></label>
+<details><summary>端口与自定义安装目录</summary><div class="grid"><label>本机 Drive 入口端口<input id="joinPort" type="number" value="16690" min="1" max="65535"></label><label>Drive 应用路径（可选）<input id="drivePath" placeholder="使用默认安装位置"></label></div></details>
+<div class="actions"><button type="button" id="preflight" class="secondary">检查本机环境</button><button type="submit">导入并接入</button></div></form><ul id="checks"></ul></section>
+<section id="publicKey" hidden><h2>授权这台设备</h2><p>把下方设备公钥交给 VPS 管理员。授权后点击「安装并启动」即可。</p><pre id="key"></pre></section>
+<section id="statusCard" hidden><div class="heading"><h2>连接状态</h2><button id="refresh" class="quiet">刷新</button></div>
+<div class="metrics"><div><small>当前线路</small><b id="route">—</b></div><div><small>后台服务</small><b id="service">—</b></div><div><small>连接数</small><b id="connections">—</b></div></div>
+<dl><dt>Drive 固定入口</dt><dd id="endpoint"></dd><dt>选路依据</dt><dd id="reason"></dd><dt>上次切换</dt><dd id="switched"></dd><dt>VPS</dt><dd id="vps"></dd></dl><details><summary>查看设备公钥</summary><pre id="deviceKey"></pre></details>
+<div class="actions"><button data-op="install">安装并启动</button><button data-op="start" class="secondary">启动</button><button data-op="stop" class="secondary">停止</button></div></section>
+<section id="routing" hidden><div class="heading"><h2>线路配置</h2></div>
+<form id="form"><label>使用策略<select id="mode"><option value="auto">在家直连，异地走 VPS</option><option value="relay">始终走 VPS</option></select></label>
+<div id="lanFields"><div class="grid"><label>NAS 局域网 IPv4<input id="lan_ip" placeholder="192.168.1.20"></label><label>NAS 证书名称<input id="nas_name" placeholder="drive.example.net"></label></div>
+<details><summary>端口和证书指纹</summary><div class="grid"><label>Drive 端口<input id="drive_port" type="number" min="1" max="65535"></label><label>DSM HTTPS 验证端口<input id="verify_port" type="number" min="1" max="65535"></label></div><label>可信 DSM 证书 SHA-256（可选）<input id="cert_sha256" autocomplete="off"></label></details></div>
+<div class="actions"><button type="submit">保存配置</button></div></form></section>
+<footer><button id="closePanel" class="quiet">关闭控制台</button></footer></main></body></html>

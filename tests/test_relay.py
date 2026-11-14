@@ -117,7 +117,7 @@ class EndpointTests(unittest.TestCase):
         exe = services.package(self.state)
         result = subprocess.check_output([sys.executable,"-I","-B",str(exe),"--version"],
                                          cwd=self.base, **config.quiet_kwargs()).decode().strip()
-        self.assertEqual(result,"0.1.0")
+        self.assertEqual(result,cli.__version__)
         doc = ET.fromstring(services.windows_xml(self.state,exe,"S-1-5-21-123"))
         self.assertEqual(Path(doc.findtext(".//{*}Command")).name,"pythonw.exe")
         self.assertIn(str(exe),doc.findtext(".//{*}Arguments"))

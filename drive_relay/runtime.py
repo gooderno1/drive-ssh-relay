@@ -1,5 +1,6 @@
 """Foreground supervisor used by all service managers."""
 import contextlib
+import asyncio
 import ctypes
 from datetime import datetime, timezone
 import json
@@ -106,17 +107,17 @@ class Report:
         self.state = state
         self.previous = None
 
-    def update(self, phase, detail="", pid=None, retry=0):
+    def update(self, phase, detail="", pid=None, retry=0, **fields):
         payload = dict(time=stamp(), epoch=time.time(), supervisor=os.getpid(), ssh_pid=pid,
-                       phase=phase, detail=detail, retry_in_seconds=retry)
+                       phase=phase, detail=detail, retry_in_seconds=retry, **fields)
         atomic(self.state/"status.json", (json.dumps(payload) + "\n").encode())
-        signature = (phase, detail)
+        signature = (phase, detail, fields.get("route"), fields.get("route_reason"))
         if signature != self.previous:
             log = self.state/"events.log"
             if log.exists() and log.stat().st_size > 256 * 1024:
                 log.replace(self.state/"events.previous.log")
             with log.open("a", encoding="utf-8") as f:
-                f.write(f"{stamp()} {phase} {detail}\n")
+                f.write(" ".join(str(v) for v in (stamp(), *signature) if v) + "\n")
             self.previous = signature
 
 
@@ -142,12 +143,23 @@ def run(state):
         for sig in (signal.SIGINT, signal.SIGTERM):
             signal.signal(sig, lambda *_: stop.set())
         report = Report(state)
+        if profile.role == "client":
+            from .routing import Router
+            while not stop.is_set() and not request.exists():
+                try:
+                    asyncio.run(Router(state, profile, stop, report).serve())
+                    break
+                except OSError as exc:
+                    import errno
+                    if exc.errno not in (errno.EADDRINUSE, errno.EACCES, 10048, 10013):
+                        raise
+                    report.update("blocked", "local_port_conflict", retry=5)
+                    stop.wait(2)
+            request.unlink(missing_ok=True)
+            report.update("stopped")
+            return 0
         delay = 2
         while not stop.is_set() and not request.exists():
-            if profile.role == "client" and not local_free(profile.local_port):
-                report.update("blocked", "local_port_conflict", retry=5)
-                stop.wait(5)
-                continue
             started = time.monotonic()
             latest = ["ssh_exit"]
             notice = threading.Event()
@@ -192,8 +204,7 @@ def run(state):
     return 0
 
 
-def doctor(state):
-    p = load(state)
+def snapshot(state):
     try:
         status = json.loads((state/"status.json").read_text(encoding="utf-8"))
         fresh = 0 <= time.time() - float(status["epoch"]) <= 12
@@ -205,15 +216,26 @@ def doctor(state):
             pass
     except ValueError:
         occupied = True
-    active = occupied and fresh and status.get("phase") == "ssh_running"
+    if occupied and fresh:
+        return status
+    return {"phase": "inactive", "detail": "supervisor_not_running_or_stale"}
+
+
+def doctor(state):
+    p = load(state)
+    status = snapshot(state)
+    active = status["phase"] in ("routing", "ssh_running")
     target = p.local_port if p.role == "client" else p.drive_port
     checks = {"vps_tcp_reachable": tcp(p.host, p.ssh_port),
               "profile_supervisor_active": active,
-              "local_forward_tcp" if p.role == "client" else "drive_server_tcp": tcp(LOOPBACK, target)}
+              "local_forward_tcp" if p.role == "client" else "drive_server_tcp":
+                  (active and not local_free(target)) if p.role == "client" else tcp(LOOPBACK, target)}
     # On a client, connecting to -L only tests accept(). On the NAS, connecting
     # to 6690 tests the listener. A completed end-to-end file probe is separate.
-    detail = status.get("detail") if fresh and occupied else "supervisor_not_running_or_stale"
-    result = {"role": p.role, "checks": checks, "phase": status.get("phase") if fresh and occupied else "inactive",
+    detail = status.get("detail")
+    result = {"schema": "drive-ssh-relay/desktop-v1", "role": p.role, "checks": checks, "phase": status["phase"], "route": status.get("route"),
+              "route_reason": status.get("route_reason"),
               "detail": detail, "file_transfer": "use probe send/ack"}
     print(json.dumps(result, indent=2))
-    return 0 if all(checks.values()) and not detail else 2
+    required = [v for k, v in checks.items() if k != "vps_tcp_reachable" or status.get("route") != "lan"]
+    return 0 if all(required) and not detail else 2

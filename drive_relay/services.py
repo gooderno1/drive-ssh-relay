@@ -32,7 +32,9 @@ def package(state):
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, "w") as z:
             sources = {"__main__.py": b"from drive_relay.cli import main\nraise SystemExit(main())\n"}
-            for f in sorted(Path(__file__).parent.glob("*.py")):
+            for f in sorted(Path(__file__).parent.iterdir()):
+                if f.suffix not in (".py", ".html", ".css", ".js"):
+                    continue
                 sources["drive_relay/" + f.name] = f.read_bytes()
             for name, content in sources.items():
                 z.writestr(zipfile.ZipInfo(name), content, compress_type=zipfile.ZIP_DEFLATED)
@@ -223,7 +225,7 @@ def dsm_service(action, state, binary):
             print("Remove the registered boot task from DSM Task Scheduler.")
 
 
-def service(action, state):
+def service(action, state, announce=True):
     load(state)
     with exclusive(state/"service.lock"):
         binary = package(state) if action == "install" else None
@@ -233,4 +235,5 @@ def service(action, state):
             mac_service(action, state, binary)
         else:
             dsm_service(action, state, binary)
-    print(f"{action}: {identifier(state)}")
+    if announce:
+        print(f"{action}: {identifier(state)}")

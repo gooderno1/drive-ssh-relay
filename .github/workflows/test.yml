@@ -17,6 +17,12 @@ jobs:
           python-version: '3.11'
       - run: python -B -m unittest discover -s tests -v
       - run: python -m pip wheel . --no-deps --wheel-dir dist
+      - run: python -m pip install "paramiko>=3.4,<6" cryptography
+      - run: python -B tests/roaming_smoke.py
+      - if: runner.os == 'Windows'
+        run: cscript //nologo "Open Relay.vbs" --check
+      - if: runner.os == 'macOS'
+        run: '"./Drive Relay.app/Contents/MacOS/launcher" --check'
       - if: runner.os != 'macOS'
         run: python -B tests/service_smoke.py
       - if: runner.os == 'macOS'

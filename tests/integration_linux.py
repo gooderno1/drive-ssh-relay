@@ -227,23 +227,31 @@ def run():
         wrong_pin = (wrong/"known_hosts").read_bytes()
         reject = subprocess.Popen([sys.executable,str(CLI),"--state",str(wrong),"run"])
         stack.callback(stop,reject)
+        def denied(state, port, detail):
+            try:
+                if exchange(port):
+                    raise AssertionError("unauthorized stream passed TLS exchange")
+            except (OSError, ssl.SSLError):
+                pass
+            time.sleep(.2)
+            return json.loads((state/"status.json").read_text())["detail"] == detail
         def fail_closed():
-            return json.loads((wrong/"status.json").read_text())["detail"]=="host_key_mismatch"
+            return denied(wrong, spare, "host_key_mismatch")
         eventually(fail_closed)
         assert (wrong/"known_hosts").read_bytes()==wrong_pin
         stop(reject)
         print("passed: wrong host key fails closed without replacing the pin",flush=True)
         def pid(role):
             return json.loads((profiles[role]/"status.json").read_text())["ssh_pid"]
-        original = {role:eventually(lambda r=role:pid(r)) for role in profiles}
+        original = eventually(lambda: pid("nas"))
         command("systemctl","restart","drive-ssh-relay.service")
         def new_sessions():
-            return all(pid(r) and pid(r)!=old for r,old in original.items())
+            return pid("nas") and pid("nas") != original
         try:
             eventually(new_sessions)
         except RuntimeError:
             for role,state in profiles.items():
-                print(role, "previous pid", original[role], (state/"status.json").read_text(), flush=True)
+                print(role, "previous NAS pid", original, (state/"status.json").read_text(), flush=True)
                 print((state/"events.log").read_text()[-1400:],flush=True)
             raise
         eventually(exchange)
@@ -254,9 +262,9 @@ def run():
         eventually(lambda:pid("nas") and pid("nas")!=bridge_pid)
         eventually(exchange)
         vps("revoke","client","client-one")
-        os.kill(pid("client"),signal.SIGTERM)
+        os.kill(eventually(lambda: pid("client")), signal.SIGTERM)
         def rejected():
-            return json.loads((profiles["client"]/"status.json").read_text())["detail"]=="key_rejected"
+            return denied(profiles["client"], local, "key_rejected")
         eventually(rejected)
         print("passed: NAS reconnect, key revocation and explicit diagnostic",flush=True)
     assert not Path("/etc/drive-ssh-relay").exists()

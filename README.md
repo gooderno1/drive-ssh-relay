@@ -2,15 +2,17 @@
 
 给 Synology Drive 桌面客户端自建 TCP 中继。NAS 和电脑各自向一台 Linux VPS 建立出站 SSH 连接，家里有公网地址或入站端口映射都不是前提。原来的同步任务继续由 Synology Drive 管理，VPS 只转发连接。项目采用 MIT 许可证，与 Synology 无隶属关系。
 
-**连接怎么选。** 电脑与 NAS 在同一可信局域网、Drive 服务可达时，直接访问 NAS。公司、酒店等其他网络默认使用自建中继。有可用 NAS 回连的已有安装，接入新电脑时复用该回连。v0.1.0 由 Drive 保存的服务器地址决定线路，出差电脑的切换方式见[线路和换机手册](docs/operations.md#routes)。
+**Windows 和 macOS 自动选路。** Drive 长期使用同一个本机入口。桌面助手确认处于 NAS 所在链路、DSM 身份可信且 Drive 端口可达时直连。外出或身份验证失败时走 VPS。切换会让已有连接重新建立，文件恢复由 Drive 处理。[选路原理](docs/operations.md#routes)
 
-**v0.1.0 可用于试点。** 已验证 Windows、macOS 和 Linux 端侧，以及穿过两段 SSH 的传输和断线恢复。真实 DSM 的开机任务属于新安装的现场验收项。[版本下载](https://github.com/gooderno1/drive-ssh-relay/releases/tag/v0.1.0) · [当前进展与试点计划](docs/DEVELOPMENT_PLAN.md)
+### 新电脑只做三步
+
+1. 下载并完整解压源码包。Windows 双击 `Open Relay.vbs`，macOS 打开同目录的 `Drive Relay.app`。两者打开本机控制台。也可在解压目录执行 `python3 relay.py panel --open`（Windows 可用 `python`）。启动器会检查 Python，页面能检查 Drive Client、OpenSSH、登录启动组件和端口，缺项会给出下一步。[下载版本](https://github.com/gooderno1/drive-ssh-relay/releases)
+2. 导入管理员提供的接入文件，把页面显示的**设备公钥**交给管理员授权，然后点击「安装并启动」。含家庭网络信息的 v2 文件会启用自动选路，已有 v1 文件默认始终中转，可在配置页补充家庭 NAS 信息。
+3. 首次将已有 Drive 连接指向固定本机入口，例如解析到回环地址、与 NAS Drive 证书匹配的 `drive.example.net:16690`。已有相同入口的设备可沿用。以后换网络无需编辑地址。控制台可随时重新打开，查看当前线路、原因及连接数，或保存新的线路设置。[AI 使用手册](docs/ai.md)
 
 ```text
-Drive Client ── 本机 127.0.0.1:16690 ── SSH 本地转发 ─┐
-                                                     ├─ VPS 127.0.0.1:16690
-Drive Server ── NAS 127.0.0.1:6690 ── SSH 反向转发 ───┘
-                                      两端出站到 VPS TCP 443
+Drive Client → 固定本机入口 ┬→ 已核验的家庭 NAS 局域网 Drive 端口
+                          └→ SSH → VPS 回环桥接口 → NAS 出站回连 → Drive
 ```
 
 | 位置 | 需要 | 启动方式 |
@@ -27,19 +29,19 @@ Drive Server ── NAS 127.0.0.1:6690 ── SSH 反向转发 ───┘
 
    ```sh
    sudo python3 deploy/vps/server.py install --ssh-port 443
-   sudo python3 deploy/vps/server.py invite --host relay.example.net > relay-invite.json
+   sudo python3 deploy/vps/server.py invite --host relay.example.net --lan-ip 192.168.1.20 --nas-name nas.example.net > relay-invite.json
    ```
 
-   把示例域名换成自己的 VPS 地址。经已验证的管理连接，把 `relay-invite.json` 复制到 NAS 和电脑。里面只有地址、两个端口和公开的主机密钥，务必从可信来源取得。安装命令还会打印 SHA-256 指纹，可另行核对。
+   换成自己的 VPS 地址、NAS 局域网 IPv4 地址和 DSM HTTPS 证书名称。管理员配置一次后可以给多台电脑分发。使用自签名证书时可提供从可信 DSM 管理渠道取得的 `--cert-sha256`。接入文件只发给自己的设备，里面有网络信息和公钥。若 NAS 仍用 v0.1.0 程序，单独生成旧格式文件 `invite --host relay.example.net` 供其导入；原有有效回连可继续复用。
 
-2. 在 NAS 和每一台电脑导入同一份接入文件，各自生成独立密钥。
+2. 首次配置 NAS 时导入接入文件并生成独立密钥。桌面可用上面的页面或命令行。
 
    ```sh
    # NAS
    python3 relay.py init nas --invite relay-invite.json
 
    # 每一台电脑
-   python3 relay.py init client --invite relay-invite.json
+   python3 relay.py setup --invite relay-invite.json
    ```
 
    每次 `init` 会显示设备的 Ed25519 **公钥**，并在私有状态目录生成 `identity.pub`。通过已有管理连接将 NAS 和电脑的这两个公钥文件放到 VPS，分别命名为 `nas.pub`、`laptop.pub`。VPS 的主机公钥用于两端识别 VPS，设备公钥用于 VPS 放行设备，两者用途不同。
@@ -73,6 +75,8 @@ Drive Server ── NAS 127.0.0.1:6690 ── SSH 反向转发 ───┘
 | 要做的事 | 命令或说明 |
 | --- | --- |
 | 查看本机链路层次 | `python3 relay.py doctor` 输出 JSON。各层通过后再用文件验收 |
+| 管理桌面、手动更改选路 | `python3 relay.py panel --open`。本机回环上的按需设置页，关闭控制台按钮会结束管理进程 |
+| 用 AI 或脚本自助接入 | 从 `capabilities`、`preflight`、`setup`、`status` 开始。输出、退出码和升级步骤见 [AI 使用手册](docs/ai.md) |
 | 试运行、观察故障 | `python3 relay.py run`，按 Ctrl+C 结束。已有同一配置的后台实例时会提示 |
 | 单独测试、并行迁移 | 在子命令之前加 `--state /absolute/private/path`。客户端可选 `--local-port`；NAS、VPS 和所有客户端的 `--bridge-port` 应一致 |
 | 开停自启动服务 | `python3 relay.py service start`、`service stop`、`service uninstall` |

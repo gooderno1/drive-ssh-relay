@@ -1,3 +1,10 @@
+# v0.2.0
+
+- Windows 和 macOS 支持固定本机入口自动选路。家中通过 NAS 身份、同链路地址与端口检查后直连，异地自动走 VPS。切换时 Drive 会重新建立传输连接。
+- 新增本机控制台、Windows 与 macOS 启动入口、新设备依赖检查、一次邀请导入，以及 AI 使用手册和 JSON 命令。
+- v0.1.0 的配置与邀请继续使用中继模式。升级端侧运行包后，可在控制台填写家庭参数，或在独立配置中导入 v2 邀请。已有服务可先在临时端口验收。
+- 源码包含服务端和桌面启动器。wheel 提供端侧 CLI 和配置页。详见 README、`docs/ai.md` 与 `docs/operations.md`。
+
 # v0.1.0
 
 First public source release. Install from the source archive using the README. The Python wheel contains the endpoint CLI. VPS scripts and deployment instructions are in the source release.
